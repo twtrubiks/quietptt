@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 唯一的權限：連 ptt.cc。CleanManifestTest 會確認這裡只有這一個，也沒有 service、receiver -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- allowBackup 關著：唯一的本機資料是加密過的帳密，金鑰在這台手機的 KeyStore 裡，備份出去也沒用；
+         我的最愛、文章都在 PTT 上。dataExtractionRules 是給 Android 12 以上換手機的直接傳輸，一樣不帶帳號 -->
+    <application
+        android:name=".QuietPttApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.QuietPtt">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

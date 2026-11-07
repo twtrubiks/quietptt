@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一個安靜的終端：深色視窗，裡面一個提示符號與游標，放在 adaptive icon 中間 66dp 的安全區內 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/ic_terminal"
+        android:pathData="M32,34L76,34A4,4 0,0 1,80 38L80,70A4,4 0,0 1,76 74L32,74A4,4 0,0 1,28 70L28,38A4,4 0,0 1,32 34Z" />
+    <path
+        android:fillColor="@color/ic_prompt"
+        android:pathData="M38,46L48,54L38,62L38,58L43,54L38,50Z" />
+    <path
+        android:fillColor="@color/ic_prompt"
+        android:pathData="M52,60L66,60L66,63L52,63Z" />
+</vector>
