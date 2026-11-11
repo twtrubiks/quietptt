@@ -22,6 +22,10 @@
 | <img src="docs/images/login.jpg" width="240" alt="登入"> | <img src="docs/images/favorites.jpg" width="240" alt="我的最愛"> | <img src="docs/images/board.jpg" width="240" alt="看板"> |
 | **文章** | **設定** | **設定（續）** |
 | <img src="docs/images/article.jpg" width="240" alt="文章"> | <img src="docs/images/settings.jpg" width="240" alt="設定"> | <img src="docs/images/settings-2.jpg" width="240" alt="設定（續）"> |
+| **推文** | **發文** | **搜尋** |
+| <img src="docs/images/push.jpg" width="240" alt="推文"> | <img src="docs/images/post.jpg" width="240" alt="發文"> | <img src="docs/images/search.jpg" width="240" alt="搜尋"> |
+| **編輯文章** | | |
+| <img src="docs/images/edit-article.jpg" width="240" alt="編輯文章"> | | |
 
 ## 下載
 

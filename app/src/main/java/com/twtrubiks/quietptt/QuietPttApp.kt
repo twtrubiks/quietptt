@@ -85,9 +85,9 @@ sealed interface Route {
         override val key get() = "reply-post-$board-$index-${search?.kind}-${search?.query}"
     }
 
-    /** 編輯自己在 [board] 的第 [index] 篇。 */
-    data class Edit(val board: String, val index: Int) : Route {
-        override val key get() = "edit-$board-$index"
+    /** 編輯自己在 [board] 的第 [index] 篇（[search] 有給的話是那次搜尋結果裡的第幾筆）。 */
+    data class Edit(val board: String, val index: Int, val search: ArticleSearch? = null) : Route {
+        override val key get() = "edit-$board-$index-${search?.kind}-${search?.query}"
     }
 
     /** 分組討論區裡的一個分類：[path] 是從【分類看板】一層一層點進來的序號，[title] 是分類名稱。 */
@@ -136,7 +136,7 @@ private val StackSaver = listSaver<List<Route>, String>(
                     (it.search?.let { s -> "|${s.kind.name}|${s.query}" } ?: "") +
                     "\t${it.title}\t${it.author}" +
                     (it.original?.let { p -> "\t${p.title}\t${p.author}\t${p.date}" } ?: "")
-                is Route.Edit -> "edit|${it.board}|${it.index}"
+                is Route.Edit -> "edit|${it.board}|${it.index}" + (it.search?.let { s -> "|${s.kind.name}|${s.query}" } ?: "")
                 // 分類名稱放最後一欄（裡面可能有「|」）
                 is Route.ClassBoards -> "class|${it.path.joinToString("/")}|${it.title}"
                 is Route.Mail -> "mail|${it.index}" + (it.preview?.let { m -> "\t${m.state}\t${m.date}\t${m.author}\t${m.title}" } ?: "")
@@ -153,10 +153,10 @@ private val StackSaver = listSaver<List<Route>, String>(
         saved.map { line ->
             val tabbed = line.split("\t")
             val main = tabbed[0]
-            // 關鍵字是最後一欄：文章（與回文）帶搜尋是 5 欄、搜尋結果是 4 欄，不多切
+            // 關鍵字是最後一欄：文章（與回文、編輯）帶搜尋是 5 欄、搜尋結果是 4 欄，不多切
             val parts = main.split(
                 "|",
-                limit = if (main.startsWith("article") || main.startsWith("reply-post")) 5 else if (main.startsWith("class")) 3 else 4,
+                limit = if (main.startsWith("article") || main.startsWith("reply-post") || main.startsWith("edit")) 5 else if (main.startsWith("class")) 3 else 4,
             )
             when (parts[0]) {
                 "board" -> Route.Board(parts[1])
@@ -180,7 +180,11 @@ private val StackSaver = listSaver<List<Route>, String>(
                         null
                     },
                 )
-                "edit" -> Route.Edit(parts[1], parts[2].toInt())
+                "edit" -> Route.Edit(
+                    parts[1],
+                    parts[2].toInt(),
+                    if (parts.size > 4) ArticleSearch(SearchKind.valueOf(parts[3]), parts[4]) else null,
+                )
                 "class" -> Route.ClassBoards(parts[1].split("/").map(String::toInt), parts[2])
                 "mail" -> Route.Mail(
                     parts[1].toInt(),
@@ -473,7 +477,9 @@ private fun OnlineScreens(
             page = page,
             board = route.board,
             search = route.search,
+            account = account,
             onOpenArticle = { ref, row -> onPush(Route.Article(route.board, ref, route.search, preview = row)) },
+            onEdit = { onPush(Route.Edit(route.board, it, route.search)) },
             onSearch = { onReplace(Route.Search(route.board, it)) },
             onTerminal = { onPush(Route.Terminal) },
             onBack = onPop,
@@ -485,7 +491,7 @@ private fun OnlineScreens(
             search = route.search,
             preview = route.preview,
             account = account,
-            onEdit = { (route.article as? ArticleRef.Numbered)?.let { onPush(Route.Edit(route.board, it.index)) } },
+            onEdit = { (route.article as? ArticleRef.Numbered)?.let { onPush(Route.Edit(route.board, it.index, route.search)) } },
             onReply = { title, author ->
                 (route.article as? ArticleRef.Numbered)?.let {
                     onPush(Route.ReplyPost(route.board, it.index, route.search, title, author, original = route.preview))
@@ -514,6 +520,7 @@ private fun OnlineScreens(
             session = session,
             board = route.board,
             index = route.index,
+            search = route.search,
             onDone = onPop,
             onTerminal = { onPush(Route.Terminal) },
             onBack = onPop,

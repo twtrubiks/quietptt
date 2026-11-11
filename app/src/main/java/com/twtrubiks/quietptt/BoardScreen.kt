@@ -289,13 +289,16 @@ fun BoardScreen(
     }
 
     fun changeTitle(index: Int, newTitle: String) = editing.launch(context.container) {
-        session.editTitle(board, index, newTitle)
+        session.editTitle(board, index, newTitle, search)
         context.toast("標題改好了")
+        // 搜尋結果裡改的：PTT 要退出搜尋才給改，終端已經不在結果裡，重搜一次
+        if (search != null) refresh()
     }
 
     fun delete(index: Int) = deleting.launch(context.container) {
-        session.deleteArticle(board, index)
+        session.deleteArticle(board, index, search)
         context.toast("文章刪掉了")
+        if (search != null) refresh()
     }
 
     /**
@@ -306,7 +309,7 @@ fun BoardScreen(
     fun rowActions(row: BoardRow.Article): List<MenuItem> {
         val busy = copying.active || editing.active || deleting.active
         val index = row.article.index
-        val mine = index != null && ownArticle(row.article, account, inSearch = search != null)
+        val mine = index != null && ownArticle(row.article, account)
         val byAuthor = sameAuthor(row.article.author)
         val byTitle = sameTitle(row.article)
         return listOfNotNull(
@@ -477,11 +480,12 @@ private val REPLY_PREFIX = Regex("""^((Re|Fw):\s*)+""", RegexOption.IGNORE_CASE)
 
 /**
  * 這篇是不是登入的人自己的、而且能編輯／改標題／刪除：作者欄是登入的代號 [account]、一般文章（有序號；置底文沒有）、
- * 還沒被刪、不在搜尋結果裡（PTT 在搜尋模式不給刪、不給改標題）。跟文章頁「⋮」判斷的條件一樣，只是看列表的作者欄。
+ * 還沒被刪。搜尋結果裡的也算（PTT 在搜尋模式不給改、不給刪，`Session` 會先退出搜尋、用文章代碼找到那篇）。
+ * 跟文章頁「⋮」判斷的條件一樣，只是看列表的作者欄。
  * 代號不分大小寫（[sameAccount]）。
  */
-fun ownArticle(article: ArticleSummary, account: String, inSearch: Boolean): Boolean =
-    !inSearch && article.index != null && !article.deleted && sameAccount(article.author, account)
+fun ownArticle(article: ArticleSummary, account: String): Boolean =
+    article.index != null && !article.deleted && sameAccount(article.author, account)
 
 /**
  * 作者欄 [author] 是不是登入的代號 [account]。PTT 登入不分大小寫（pttbbs `searchuser` 不分大小寫找、換成註冊時的寫法），

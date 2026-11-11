@@ -388,6 +388,30 @@ class ActionsTest {
     }
 
     @Test
+    fun deleteFromSearchResultsLeavesTheSearchAndFindsTheArticleByAid() = runBlocking {
+        // pttbbs 在搜尋模式不給刪：讀文章代碼、退出搜尋、在整個列表用 # 跳過去再刪
+        val ptt = bbs(LIST)
+        val session = connect(ptt)
+        val search = ArticleSearch(SearchKind.AUTHOR, "chanifa")
+        val list = withTimeout(TEST_TIMEOUT_MS) { session.deleteArticle("MobileComm", 1, search) }
+        assertTrue(list.articles.first { it.index == 153897 }.deleted)
+        assertEquals(listOf("a", "chanifa\r", "Q", "\r", Keys.LEFT, "#", "1f2-Ab_9\r", "d", "y\r"), ptt.received)
+    }
+
+    @Test
+    fun anArticleGoneFromTheBoardIsReported() = runBlocking {
+        val ptt = bbs(LIST, aidGone = true)
+        val session = connect(ptt)
+        try {
+            withTimeout(TEST_TIMEOUT_MS) { session.editTitle("MobileComm", 1, "新標題", ArticleSearch(SearchKind.AUTHOR, "chanifa")) }
+            fail("找不到那篇不該成功")
+        } catch (e: UnexpectedScreenException) {
+            assertTrue(e.message!!, e.message!!.contains("找不到這篇"))
+        }
+        assertEquals(listOf("a", "chanifa\r", "Q", "\r", Keys.LEFT, "#", "1f2-Ab_9\r", "\r"), ptt.received)
+    }
+
+    @Test
     fun editTitleClearsTheOldOneAndConfirms() = runBlocking {
         val ptt = bbs(LIST)
         val session = connect(ptt)
@@ -447,6 +471,92 @@ class ActionsTest {
         assertTrue(session.page is Page.ArticleList)
     }
 
+    @Test
+    fun editArticleInsertsRepliesUnderTheirPushes() = runBlocking {
+        val ptt = bbs(LIST, file = FILE_WITH_PUSHES)
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) {
+            session.editArticle(
+                "MobileComm", 153909, oldBody = OLD_BODY, newBody = OLD_BODY.joinToString("\n"),
+                replies = listOf(reply(3, "回第三則\n第二列"), reply(PUSHES, "回最後一則"), reply(20, "回第二十則")),
+            )
+        }
+        val total = FILE_WITH_PUSHES.size
+        assertEquals(
+            listOf(
+                "E", // 本文沒改：不碰本文
+                Keys.ctrl('T'),
+                Keys.ESC + "L", "$total\r", Keys.ctrl('E') + "\r回最後一則", // 最後一行：到行尾換行再打
+                Keys.ESC + "L", "${total - (PUSHES - 20)}\r", Keys.DOWN, "回第二十則\r",
+                Keys.ESC + "L", "${total - (PUSHES - 3)}\r", Keys.DOWN, "回第三則\r第二列\r",
+                Keys.ctrl('X'),
+                "s\r",
+            ),
+            ptt.received,
+        )
+        val expected = FILE_WITH_PUSHES.toMutableList()
+        expected.add(expected.indexOf(editorPush(PUSHES)) + 1, "回最後一則")
+        expected.addAll(expected.indexOf(editorPush(20)) + 1, listOf("回第二十則"))
+        expected.addAll(expected.indexOf(editorPush(3)) + 1, listOf("回第三則", "第二列"))
+        assertEquals(expected, editedFile)
+        assertTrue(session.page is Page.ArticleList)
+    }
+
+    @Test
+    fun editArticleFindsThePushWhenNewOnesArrived() = runBlocking {
+        // App 讀完之後又多了兩則推文：從檔尾數會差兩行，照畫面上的字找回來
+        val newer = FILE_WITH_PUSHES + listOf(editorPush(PUSHES + 1), editorPush(PUSHES + 2))
+        val ptt = bbs(LIST, file = newer)
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) {
+            session.editArticle(
+                "MobileComm", 153909, oldBody = OLD_BODY, newBody = "新的本文",
+                replies = listOf(reply(20, "回第二十則")),
+            )
+        }
+        val expected = (newer.take(4) + "新的本文" + newer.drop(4 + OLD_BODY.size)).toMutableList()
+        expected.add(expected.indexOf(editorPush(20)) + 1, "回第二十則")
+        assertEquals(expected, editedFile)
+        assertEquals(listOf(Keys.ctrl('X'), "s\r"), ptt.received.takeLast(2))
+    }
+
+    @Test
+    fun editArticleGivesUpWhenThePushIsNotThere() = runBlocking {
+        val ptt = bbs(LIST, file = FILE_WITH_PUSHES)
+        val session = connect(ptt)
+        try {
+            withTimeout(TEST_TIMEOUT_MS) {
+                session.editArticle(
+                    "MobileComm", 153909, oldBody = OLD_BODY, newBody = OLD_BODY.joinToString("\n"),
+                    replies = listOf(PushReply(fromEnd = 5, push = "推 nobody: 沒有這則" + " ".repeat(40) + "11/07 10:01", text = "回")),
+                )
+            }
+            fail("找不到推文不該存檔")
+        } catch (e: UnexpectedScreenException) {
+            assertTrue(e.message!!, e.message!!.contains("沒有存檔"))
+        }
+        assertEquals(listOf(Keys.ctrl('X'), "a\r"), ptt.received.takeLast(2))
+        assertEquals(FILE_WITH_PUSHES, editedFile)
+        assertTrue(session.page is Page.ArticleList)
+    }
+
+    @Test
+    fun editorRowsAreMatchedToPushesWithoutTheColorCodes() {
+        val shown = viewPush(7)
+        assertTrue(editorRowShows(editorPush(7).take(79), shown))
+        assertFalse(editorRowShows(editorPush(8).take(79), shown))
+        assertFalse(editorRowShows("回第七則", shown))
+        assertFalse(editorRowShows("", shown))
+        // 被切在全形字中間：最後那個字不算
+        assertTrue(editorRowShows(editorPush(7).substringBefore("則推文") + "則推?", shown))
+    }
+
+    /** 假 PTT 編輯器裡最後的檔案內容。 */
+    private var editedFile: List<String> = emptyList()
+
+    /** 第 [n] 則推文下面的回應（[PushReply]）：照 App 的算法，從文章最後一行（最後一則推文）往回數。 */
+    private fun reply(n: Int, text: String) = PushReply(fromEnd = PUSHES - n, push = viewPush(n), text = text)
+
     private suspend fun connect(ptt: FakePtt): Session {
         fakes += ptt.start()
         val session = Session(WebSocketTransport(client, url = ptt.url), scope)
@@ -465,12 +575,23 @@ class ActionsTest {
         canPush: Boolean = true,
         mine: Boolean = true,
         deleteNotice: Boolean = false,
+        file: List<String> = EDITOR_FILE,
+        aidGone: Boolean = false,
     ): FakePtt {
         var at = first
-        var editorLines = EDITOR_FILE.toMutableList()
+        var editorLines = file.toMutableList()
         var cursor = 1
+        // 編輯器的視窗：最上面那列是檔案第幾行（0 起）；Esc-L 的提示開著沒
+        var top = 0
+        var asking = false
+        var cursorRow: Int? = null
         fun editorScreen(): String {
-            val rows = (0 until 23).map { editorLines.getOrElse(it) { "" } }
+            if (cursor - 1 < top) top = cursor - 1
+            if (cursor - 1 > top + 22) top = cursor - 23
+            val rows = (top until top + 23).map { editorLines.getOrElse(it) { "" } }.toMutableList()
+            if (asking) rows[22] = "跳至第幾行:"
+            cursorRow = cursor - 1 - top
+            editedFile = editorLines
             return (rows + editorStatus(cursor)).joinToString("\n")
         }
         return FakePtt(first) { input ->
@@ -510,6 +631,16 @@ class ActionsTest {
                 at == PUSH_TYPE_PROMPT && input.length == 1 -> COMMENT_PROMPT
                 at.startsWith(ARTICLE_BODY) && at != ARTICLE && input.endsWith("\r") && input != "y\r" -> COMMENT_CONFIRM
                 at == COMMENT_CONFIRM && input == "y\r" -> LIST
+                // 搜尋作者 → 結果（游標在第 1 筆）；結果裡 Q 看文章代碼、左鍵退出搜尋；整個列表 # 打代碼跳到那篇（`select_by_aid`）
+                at == LIST && input == "a" -> AUTHOR_PROMPT
+                at == AUTHOR_PROMPT && input == "chanifa\r" -> RESULTS
+                at == RESULTS && input == "Q" -> RESULTS_INFO
+                at == RESULTS_INFO && input == "\r" -> RESULTS
+                at == RESULTS && input == Keys.LEFT -> LIST
+                at == LIST && input == "#" -> AID_ASK
+                at == AID_ASK && input == "1f2-Ab_9\r" && !aidGone -> LIST_ON_153897
+                at == AID_ASK && input.endsWith("\r") -> AID_NOT_FOUND
+                at == AID_NOT_FOUND && input == "\r" -> LIST
                 // 列表：游標、刪除、改標題、編輯
                 at == LIST && input == "153897\r" -> LIST_ON_153897
                 // 文章資訊（`Q`，`view_postinfo`）：移游標跟 Q 一起送；Enter 按掉框
@@ -532,8 +663,37 @@ class ActionsTest {
                 at == TITLE_PROMPT && input.endsWith("\r") -> TITLE_CONFIRM
                 at == TITLE_CONFIRM && input == "y\r" -> LIST_RETITLED
                 at == LIST && input == "E" -> {
-                    editorLines = EDITOR_FILE.toMutableList()
+                    editorLines = file.toMutableList()
                     cursor = 1
+                    top = 0
+                    editorScreen()
+                }
+                // 檔尾（`edit_cmd_eof`）、跳行（`prompt_goto_line`→`goto_line`：那一行放在畫面中間）
+                at.contains("║插入│") && input == Keys.ctrl('T') -> {
+                    cursor = editorLines.size
+                    editorScreen()
+                }
+                at.contains("║插入│") && input == Keys.ESC + "L" -> {
+                    asking = true
+                    editorScreen()
+                }
+                at.contains("║插入│") && asking -> {
+                    asking = false
+                    input.trim().toIntOrNull()?.takeIf { it in 1..editorLines.size + 1 }?.let {
+                        cursor = it
+                        top = (it - 1 - 11).coerceAtLeast(0)
+                    }
+                    editorScreen()
+                }
+                at.contains("║插入│") && input.startsWith(Keys.UP) -> {
+                    cursor = (cursor - input.length / Keys.UP.length).coerceAtLeast(1)
+                    editorScreen()
+                }
+                at.contains("║插入│") && input.startsWith(Keys.ctrl('E') + "\r") -> {
+                    // 行尾按 Enter 再打字：接在游標那一行後面
+                    val typed = input.removePrefix(Keys.ctrl('E') + "\r").split("\r")
+                    editorLines.addAll(cursor, typed)
+                    cursor += typed.size
                     editorScreen()
                 }
                 at.contains("║插入│") && input == Keys.ctrl('X') -> SAVE_PROMPT
@@ -542,7 +702,7 @@ class ActionsTest {
                     editorScreen()
                 }
                 at.contains("║插入│") && input.startsWith(Keys.DOWN) -> {
-                    cursor += input.length / Keys.DOWN.length
+                    cursor = (cursor + input.length / Keys.DOWN.length).coerceAtMost(editorLines.size)
                     editorScreen()
                 }
                 at.contains("║插入│") -> {
@@ -557,7 +717,7 @@ class ActionsTest {
             }
             if (next != null) {
                 at = next
-                show(next)
+                show(next, cursorRow.takeIf { next.contains("║插入│") })
             }
         }
     }
@@ -651,6 +811,22 @@ class ActionsTest {
             box.forEachIndexed { i, line -> s = replaceRow(s, first + i, line) }
             return replaceRow(s, 23, " ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ 請按任意鍵繼續 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   ")
         }
+        // 搜作者 chanifa 的結果：2 筆（序號是結果裡的第幾筆），第 1 筆就是整個列表的 153897
+        val AUTHOR_PROMPT = replaceRow(LIST, 23, "搜尋作者: ")
+        val RESULTS: String = run {
+            val lines = LIST.replace("看板《MobileComm》", "系列《MobileComm》").lines().toMutableList()
+            for (row in 3 until 23) lines[row] = ""
+            lines[3] = Fixtures.articleRow(1, push = "34", mark = '+', date = "11/06", author = "chanifa", title = "[討論] s24u 綠線案例", cursor = ">")
+            lines[4] = Fixtures.articleRow(2, push = "10", mark = '+', author = "chanifa", title = "[討論] 國外Samsung fold8 綠線案例")
+            lines[23] = " 系列文章  (^P)發表 (y)回應 (X)推文 (d)刪除 (→)閱讀 (b)進板  (←)離開 (h)說明"
+            lines.joinToString("\n")
+        }
+        val RESULTS_INFO = postInfo(RESULTS, cursorRow = 3, aid = "1f2-Ab_9", title = "[討論] s24u 綠線案例")
+        val AID_ASK = replaceRow(LIST, 23, "搜尋文章代碼(AID): #")
+        val AID_NOT_FOUND = replaceRow(
+            replaceRow(replaceRow(LIST, 21, " "), 22, "找不到這個文章代碼(AID)，可能是文章已消失，或是你找錯看板了"),
+            23, " ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ 請按任意鍵繼續 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   ",
+        )
         val POST_INFO_153897 = postInfo(LIST_ON_153897, cursorRow = 8, aid = "1f2-Ab_9", title = "[討論] s24u 綠線案例")
         val POST_INFO_153909 = postInfo(LIST, cursorRow = 20, aid = "1fA0zz-Q", title = "[問題] 谷歌地圖GPS")
         val POST_INFO_PINNED = postInfo(LIST, cursorRow = 21, aid = "1Zz9_-aB", title = "[置底] 2024下半年閒聊區", price = "特殊文章，無價格記錄")
@@ -676,6 +852,12 @@ class ActionsTest {
             "時間: Fri Nov  7 10:00:00 2026",
             "",
         ) + OLD_BODY + listOf("--", "※ 發信站: 批踢踢實業坊(ptt.cc), 來自: 1.2.3.4 (臺灣)")
+        const val PUSHES = 30
+
+        /** 第 [n] 則推文在文章頁看到的樣子，與在編輯器裡的樣子（ESC 畫成「*」，pttbbs `FormatCommentString`、`edit_outs_attr_n`）。 */
+        fun viewPush(n: Int) = "推 user$n".padEnd(14) + ": 第 $n 則推文".let { it + " ".repeat(40) } + " 11/07 10:%02d".format(n)
+        fun editorPush(n: Int) = "*[1;37m推 *[33m" + "user$n".padEnd(12) + "*[m*[33m: 第 $n 則推文" + " ".repeat(40) + "*[m 11/07 10:%02d".format(n)
+        val FILE_WITH_PUSHES = EDITOR_FILE + listOf("※ 文章網址: https://www.ptt.cc/bbs/MobileComm/M.1.A.html") + (1..PUSHES).map(::editorPush)
         val SAVE_PROMPT: String = replaceRow(
             replaceRow(List(24) { "" }.joinToString("\n"), 0, "檔案處理"),
             2,

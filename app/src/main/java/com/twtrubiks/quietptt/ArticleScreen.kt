@@ -131,7 +131,7 @@ import kotlinx.coroutines.Dispatchers
  * - 最下面一條工具列（[ArticleBottomBar]）：「推文」「回文」「到底／到頂」「重整」「分享」；「回文」（[onReply]，帶著標頭的標題與作者）進回文頁，
  *   置底文（沒有序號）、被刪的文章沒有；「推文」按了才展開推文的輸入列（[PushBar]，BePTT 的 `fragment_article_push`）：
  *   推／噓／→ 切換、內容、「送出」（[Session.push]），送完收起來、重讀文章、捲到最下面；「✕」或返回鍵收起來
- * - 自己的文章（標頭的作者是登入的 [account]，而且是一般文章、不在搜尋結果裡）「⋮」多了「編輯文章」（[onEdit]）、「修改標題」
+ * - 自己的文章（標頭的作者是登入的 [account]，而且是一般文章；搜尋結果裡的也算）「⋮」多了「編輯文章」（[onEdit]）、「修改標題」
  *   （[Session.editTitle]）、「刪除文章」（[Session.deleteArticle]，先問一次，刪完回看板）
  */
 @Composable
@@ -379,7 +379,7 @@ fun ArticleScreen(
     fun changeTitle(newTitle: String) {
         val index = (article as? ArticleRef.Numbered)?.index ?: return
         editing.launch(context.container) {
-            session.editTitle(board, index, newTitle)
+            session.editTitle(board, index, newTitle, search)
             context.toast("標題改好了")
             reload()
         }
@@ -389,7 +389,7 @@ fun ArticleScreen(
     fun delete() {
         val index = (article as? ArticleRef.Numbered)?.index ?: return
         deleting.launch(context.container) {
-            session.deleteArticle(board, index)
+            session.deleteArticle(board, index, search)
             context.toast("文章刪掉了")
         }
     }
@@ -444,9 +444,10 @@ fun ArticleScreen(
     Column(Modifier.fillMaxSize()) {
         AppBar(board, onBack = onBack) {
             TerminalButton(onTerminal)
-            // 自己的文章才有編輯／改標題／刪除：標頭的作者是登入的代號、一般文章（置底文沒有序號）、不在搜尋結果裡（PTT 不給在搜尋模式刪改）
+            // 自己的文章才有編輯／改標題／刪除：標頭的作者是登入的代號、一般文章（置底文沒有序號）。
+            // 搜尋結果裡的也給（PTT 不給在搜尋模式刪改，Session 會先退出搜尋、用文章代碼找到那篇）
             val mine = current != null && sameAccount(current.header?.author, account) &&
-                article is ArticleRef.Numbered && search == null
+                article is ArticleRef.Numbered
             val busy = editing.active || deleting.active
             // 作者、標題用標頭的；還沒讀到標頭時用列表那一列的
             val author = (current?.header?.author ?: preview?.author)?.takeIf { it != "-" }
@@ -1011,7 +1012,7 @@ fun floorLabel(comment: ArticleItem.Comment): String = "${comment.floor}樓/${co
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CommentRow(
+internal fun CommentRow(
     comment: ArticleItem.Comment,
     isAuthor: Boolean,
     grouped: Boolean,
@@ -1099,7 +1100,7 @@ private fun HighlightBar(user: String, count: Int, complete: Boolean, onClose: (
 }
 
 /** 推綠、噓紅、→ 灰；深色主題用亮一點的綠與紅。 */
-private class PushColors(val push: Color, val boo: Color, val arrow: Color) {
+internal class PushColors(val push: Color, val boo: Color, val arrow: Color) {
     fun of(type: PushType): Color = when (type) {
         PushType.PUSH -> push
         PushType.BOO -> boo
@@ -1108,7 +1109,7 @@ private class PushColors(val push: Color, val boo: Color, val arrow: Color) {
 }
 
 @Composable
-private fun pushColors(): PushColors {
+internal fun pushColors(): PushColors {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     return PushColors(
         push = if (dark) Color(0xFF81C784) else Color(0xFF2E7D32),

@@ -8,7 +8,9 @@ import com.twtrubiks.quietptt.core.ptt.LoginResult
 import com.twtrubiks.quietptt.core.ptt.NewPost
 import com.twtrubiks.quietptt.core.ptt.Page
 import com.twtrubiks.quietptt.core.ptt.PostReply
+import com.twtrubiks.quietptt.core.ptt.PushReply
 import com.twtrubiks.quietptt.core.ptt.PushType
+import com.twtrubiks.quietptt.core.ptt.pushAnchors
 import com.twtrubiks.quietptt.core.ptt.ScreenParser
 import com.twtrubiks.quietptt.core.ptt.Session
 import com.twtrubiks.quietptt.core.ptt.editableBody
@@ -220,12 +222,21 @@ suspend fun writeEndToEnd() {
         mine(row.index!!)
         val before = step("編輯前讀一次") { readAll(ref) } ?: return
         val newBody = "改過的內文 $stamp\n第二行也改了"
-        step("編輯內文") { session.editArticle(board, row.index!!, before.editableBody(), newBody) }
+        // 推文下面插一則回應（只有自己推的那一則）
+        val replyText = "回應推文 $stamp"
+        val replies = before.pushAnchors().take(1).map { PushReply(it.fromEnd, it.line, replyText) }
+        check(replies.isNotEmpty()) { "編輯前沒讀到推文，沒辦法測在推文下面回應" }
+        step("編輯內文、在推文下面回應") { session.editArticle(board, row.index!!, before.editableBody(), newBody, replies) }
         step("讀回來對本文") { readAll(ref) }?.let { after ->
             val body2 = after.editableBody()
             say("  本文：$body2")
             check(body2.joinToString("\n").contains("改過的內文 $stamp") && body2.none { it.contains("自動測試") }) { "本文沒改成" }
             check(after.items().any { it is ArticleItem.Comment && it.push.text.contains(stamp) }) { "編輯之後推文不見了" }
+            val items = after.items()
+            val pushAt = items.indexOfFirst { it is ArticleItem.Comment && it.push.text.contains(stamp) }
+            val replyAt = items.indexOfFirst { it is ArticleItem.Line && it.text.contains(replyText) }
+            say("  推文在第 $pushAt 則、回應在第 $replyAt 則")
+            check(replies.isEmpty() || replyAt == pushAt + 1) { "回應沒有插在推文下面" }
         }
 
         // 刪文

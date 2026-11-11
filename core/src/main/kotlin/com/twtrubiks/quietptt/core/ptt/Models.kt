@@ -292,6 +292,12 @@ data class MailReply(
 }
 
 /**
+ * 編輯自己的文章時，插在某則推文下面的回應（`Session.editArticle`）：[fromEnd]、[push] 是那則推文的 [PushAnchor]
+ * （最後一列離文章最後一行幾行、那一列的文字），[text] 是要插進去的字（可以好幾列）。
+ */
+data class PushReply(val fromEnd: Int, val push: String, val text: String)
+
+/**
  * 回一篇文章到看板（`Session.replyPost`）：[title] 是 null 就用 PTT 給的標題（「Re: 原標題」，「採用原標題」答 y），不然換成這個；
  * [quote] 是「請問要引用原文嗎」答 y（引言放在內文下面）；[signature] 同 [NewPost]。
  */

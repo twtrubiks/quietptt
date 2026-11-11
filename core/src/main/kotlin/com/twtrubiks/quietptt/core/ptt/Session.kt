@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
+import kotlin.math.abs
 
 /** 登入的結果。 */
 sealed interface LoginResult {
@@ -1195,9 +1196,11 @@ class Session(
      * 等第 1 列「請確定刪除(Y/N)?[N]」答 y，列表上那篇的作者變成「-」、標題「(本文已被刪除) [代號]」。
      * 真機答 y 之後列表上面還疊了一個「請按任意鍵繼續」的訊息（列表沒清掉）：按掉它，看那篇是不是真的刪了，刪了就算成功。
      * 不是自己的文章、或這個板不給刪時 PTT 一個字都不回（`DONOTHING`）：等 [SHORT_TIMEOUT_MS] 沒反應就丟例外。
+     * [search] 有給的話 [index] 是那次搜尋結果裡的第幾筆（[cursorInBoard]）。
      */
-    suspend fun deleteArticle(board: String, index: Int): Page.ArticleList = navigate {
-        val list = cursorOn(board, index)
+    suspend fun deleteArticle(board: String, index: Int, search: ArticleSearch? = null): Page.ArticleList = navigate {
+        val list = cursorInBoard(board, index, search)
+        val at = list.cursor ?: index
         val prompt = pressOrNothing("d", list) { it is Page.DeletePrompt || it is Page.PressAnyKey }
             ?: throw UnexpectedScreenException("PTT 沒有反應：只能刪自己的文章，有些板也不給自刪", list.screen)
         if (prompt is Page.PressAnyKey) failWith(prompt, "PTT 不讓刪")
@@ -1205,7 +1208,7 @@ class Session(
         if (after !is Page.PressAnyKey) return@navigate after as Page.ArticleList
         val message = noticeAboveAnyKey(after.screen)
         val back = press(Keys.ENTER, after) { it is Page.ArticleList } as Page.ArticleList
-        if (back.articles.firstOrNull { it.index == index }?.deleted != true) {
+        if (back.articles.firstOrNull { it.index == at }?.deleted != true) {
             throw UnexpectedScreenException(message.ifEmpty { "文章沒有刪掉" }, after.screen)
         }
         back
@@ -1225,9 +1228,10 @@ class Session(
      * 改自己文章的標題（pttbbs `edit_title`）：游標移到那篇按 `T`，第 22 列「標題：舊標題」，
      * Ctrl-Y 把舊的清掉、打 [title] Enter，「確定(Y/N)?[n]」答 y。
      * 要扣稿費的（「修改此標題需扣除全部稿費」）答 n、原因丟出來，不代使用者花錢。不給改的 PTT 沒反應或說「無法修改標題: …」。
+     * [search] 有給的話 [index] 是那次搜尋結果裡的第幾筆（[cursorInBoard]）。
      */
-    suspend fun editTitle(board: String, index: Int, title: String): Page.ArticleList = navigate {
-        val list = cursorOn(board, index)
+    suspend fun editTitle(board: String, index: Int, title: String, search: ArticleSearch? = null): Page.ArticleList = navigate {
+        val list = cursorInBoard(board, index, search)
         val prompt = pressOrNothing("T", list) { it is Page.TitlePrompt || it is Page.PressAnyKey }
             ?: throw UnexpectedScreenException("PTT 沒有反應：只能改自己文章的標題", list.screen)
         if (prompt is Page.PressAnyKey) failWith(prompt, "PTT 不讓改標題")
@@ -1256,14 +1260,39 @@ class Session(
      * 在前 23 列裡找到 [oldBody] 第一列是檔案的第幾行（找不到就當第 5 行），游標往下移到那裡，Ctrl-Y 一行一行刪掉舊本文，
      * 確認游標那一列已經是「--」（或「※ 發信站」）才打新本文（每列 Enter），然後 Ctrl-X、s 存檔。
      * 哪一步對不上就 Ctrl-X、a 放棄（PTT 不會動到原文），把原因丟出來。
-     * 原文裡的顏色會不見（App 看到的是純文字）；一列超過編輯器的寬度會被折成兩列。
+     * 原文裡的顏色會不見（App 看到的是純文字）；一列超過編輯器的寬度會被折成兩列。本文沒改（[newBody] 跟 [oldBody] 一樣）就不碰它，顏色留著。
+     *
+     * [replies] 是要插在推文下面的回應（[insertReplies]）：本文弄完之後才插，只插入、不刪任何一列。
+     * [search] 有給的話 [index] 是那次搜尋結果裡的第幾筆（[cursorInBoard]）。
      */
-    suspend fun editArticle(board: String, index: Int, oldBody: List<String>, newBody: String): Page.ArticleList = navigate {
-        val list = cursorOn(board, index)
+    suspend fun editArticle(
+        board: String,
+        index: Int,
+        oldBody: List<String>,
+        newBody: String,
+        replies: List<PushReply> = emptyList(),
+        search: ArticleSearch? = null,
+    ): Page.ArticleList = navigate {
+        val list = cursorInBoard(board, index, search)
         var editor = pressOrNothing("E", list) { it is Page.Editor || it is Page.PressAnyKey }
             ?: throw UnexpectedScreenException("PTT 沒有反應：只能編輯自己的文章", list.screen)
         if (editor is Page.PressAnyKey) failWith(editor, "PTT 不讓編輯")
         editor = editorReady(editor as Page.Editor)
+        if (newBody.lines() != oldBody) editor = replaceBody(editor, oldBody, newBody)
+        if (replies.isNotEmpty()) editor = insertReplies(editor, replies)
+        var page: Page = press(Keys.ctrl('X'), editor) { it is Page.SavePrompt }
+        page = press("s" + Keys.ENTER, page) { it !is Page.SavePrompt }
+        val messages = ArrayList<String>()
+        page = afterSave(page, messages)
+        messages.firstOrNull { it.contains("無法寫入") || it.contains("修改過") }?.let {
+            throw UnexpectedScreenException(it, page.screen)
+        }
+        page
+    }
+
+    /** 編輯器裡（游標在第 1 行）把本文 [oldBody] 換成 [newBody]；做完游標停在本文後面那列（「--」）。對不上就放棄、丟例外。 */
+    private suspend fun replaceBody(from: Page.Editor, oldBody: List<String>, newBody: String): Page.Editor {
+        var editor = from
         val rows = editor.screen.lines.dropLast(1).map { it.trimEnd() }
         val first = oldBody.firstOrNull()?.trimEnd()
         // 本文從檔案第幾行開始：畫面上（檔案前 23 行）跟本文第一列一樣的那列；本文是空的或找不到就看第 4 行是不是空的（標頭後空一行）
@@ -1286,14 +1315,63 @@ class Session(
         }
         val body = cleanBody(newBody)
         if (body.isNotEmpty()) editor = typeBody(editor, body + Keys.ENTER)
-        var page: Page = press(Keys.ctrl('X'), editor) { it is Page.SavePrompt }
-        page = press("s" + Keys.ENTER, page) { it !is Page.SavePrompt }
-        val messages = ArrayList<String>()
-        page = afterSave(page, messages)
-        messages.firstOrNull { it.contains("無法寫入") || it.contains("修改過") }?.let {
-            throw UnexpectedScreenException(it, page.screen)
+        return editor
+    }
+
+    /**
+     * 編輯器裡把 [replies] 一則一則插在它的推文下面（pttbbs `edit.c`）。只插入、不刪。
+     * 1. Ctrl-T 到檔尾（`edit_cmd_eof`），狀態列的「行」就是檔案總共幾行
+     * 2. 由下往上做（先插下面的，上面的行號不會被推走）。每一則：Esc-L（`prompt_goto_line`，第 22 列「跳至第幾行:」）跳到
+     *    「總行數－[PushReply.fromEnd]」，游標在行首、那一行在畫面中間（`goto_line`→`edit_window_adjust_middle`）
+     * 3. 那則推文該在游標那一列；進編輯器之前有人又推了文、或檔尾多一列空的，它會差幾列：在整個畫面找長得一樣的列
+     *    （[editorRowShows]），挑離游標最近的。找不到就放棄
+     * 4. 游標移到它的下一行行首（看狀態列的「行:欄」確認），打回應、每列 Enter：回應插在推文與下一列之間。
+     *    推文是檔案最後一行（下面沒有行）就到行尾（Ctrl-E）先 Enter 再打
+     * 哪一步對不上就 Ctrl-X、a 放棄（PTT 不動原文），把原因丟出來。
+     */
+    private suspend fun insertReplies(from: Page.Editor, replies: List<PushReply>): Page.Editor {
+        var editor = from
+        try {
+            editor = press(Keys.ctrl('T'), editor) { it is Page.Editor && it.line > from.line } as Page.Editor
+            val total = editor.line
+            for (reply in replies.sortedBy { it.fromEnd }) {
+                val text = cleanBody(reply.text)
+                if (text.isBlank()) continue
+                val guess = (total - reply.fromEnd).coerceIn(1, total)
+                val prompt = press(Keys.ESC + "L", editor) { page -> page.screen.lines.any { it.contains(GOTO_LINE_PROMPT) } }
+                editor = press("$guess" + Keys.ENTER, prompt) { page ->
+                    page is Page.Editor && page.line == guess && page.screen.lines.none { it.contains(GOTO_LINE_PROMPT) }
+                } as Page.Editor
+                val cursor = editor.screen.cursorRow
+                val row = editor.screen.lines.indices.toList().dropLast(1)
+                    .filter { editorRowShows(editor.screen.lines[it], reply.push) }
+                    .minByOrNull { abs(it - cursor) }
+                    ?: throw UnexpectedScreenException("在編輯器裡找不到「${reply.push.trim().take(20)}」這則推文，沒有存檔", editor.screen)
+                val pushLine = guess + row - cursor
+                if (pushLine >= total) {
+                    // 下面沒有行了：到那一行的行尾，先換行再打
+                    val at = editor
+                    if (pushLine != at.line) {
+                        val move = if (pushLine > at.line) Keys.DOWN.repeat(pushLine - at.line) else Keys.UP.repeat(at.line - pushLine)
+                        editor = press(move, at) { it is Page.Editor && it.line == pushLine } as Page.Editor
+                    }
+                    editor = typeBody(editor, Keys.ctrl('E') + Keys.ENTER + text)
+                } else {
+                    val at = editor
+                    val target = pushLine + 1
+                    if (target != at.line) {
+                        val move = if (target > at.line) Keys.DOWN.repeat(target - at.line) else Keys.UP.repeat(at.line - target)
+                        editor = press(move, at) { it is Page.Editor && it.line == target && it.column == 1 } as Page.Editor
+                    }
+                    editor = typeBody(editor, text + Keys.ENTER)
+                }
+            }
+            return editor
+        } catch (e: UnexpectedScreenException) {
+            // 還在編輯器裡：放棄，不存（放棄不了就留給終端畫面）
+            runCatching { (awaitQuiet() as? Page.Editor)?.let { abortEditor(it) } }
+            throw e
         }
-        page
     }
 
     /** 編輯器開起來是插入模式、不自動縮排（pttbbs 預設）；不是的話切過去（Ctrl-O 插入／取代、Esc-I 自動縮排），不然打出來的字會歪。 */
@@ -1362,6 +1440,35 @@ class Session(
         val list = goToList(board, search) ?: throw UnexpectedScreenException(NO_RESULTS, _screens.value)
         if (list.cursor == index) return list
         return press(index.toString() + Keys.ENTER, list) { it is Page.ArticleList && it.cursor == index } as Page.ArticleList
+    }
+
+    /**
+     * 走到 [board] 的**整個列表**、游標移到要改／刪的那篇。[search] 是 null 的話 [index] 就是看板的序號（[cursorOn]）。
+     * 有 [search] 的話 [index] 是搜尋結果裡的第幾筆，而 pttbbs 在搜尋模式不給編輯、改標題、刪文（`edit_post`、`edit_title`、`del_post`
+     * 都擋 `MODE_SELECT`），所以：在結果裡游標移到那筆按 `Q` 讀文章代碼（AID）、Enter 關掉，左鍵退出搜尋，
+     * 在整個列表按 `#`（pttbbs `read.c` `select_by_aid`，最下面一列「搜尋文章代碼(AID): #」）打代碼 Enter，游標就跳到那篇。
+     * 找不到（第 22 列「找不到這個文章代碼(AID)…」加任意鍵）就按掉、丟例外。
+     */
+    private suspend fun cursorInBoard(board: String, index: Int, search: ArticleSearch?): Page.ArticleList {
+        if (search == null) return cursorOn(board, index)
+        val results = cursorOn(board, index, search)
+        val box = press("Q", results) { it is Page.PressAnyKey && ScreenParser.articleInfo(it.screen) != null }
+        val aid = ScreenParser.articleInfo(box.screen)?.aid
+        press(Keys.ENTER, box) { it is Page.ArticleList }
+        if (aid == null) throw UnexpectedScreenException("讀不到這篇的文章代碼", box.screen)
+        val list = goToList(board, null) ?: throw UnexpectedScreenException("回不到 $board 的文章列表", _screens.value)
+        val prompt = press("#", list) { it.screen.lines.last().contains(AID_PROMPT) }
+        val found = press(aid + Keys.ENTER, prompt) {
+            (it is Page.ArticleList && it.isBoard(board) && !it.filtered && !it.screen.lines.last().contains(AID_PROMPT)) ||
+                it is Page.PressAnyKey
+        }
+        if (found is Page.PressAnyKey) {
+            press(Keys.ENTER, found) { it is Page.ArticleList }
+            throw UnexpectedScreenException("在看板裡找不到這篇，可能已經被刪了", found.screen)
+        }
+        found as Page.ArticleList
+        if (found.cursor == null) throw UnexpectedScreenException("在看板裡找不到這篇", found.screen)
+        return found
     }
 
     /** 送出 [keys]，等畫面變成 [expect] 的樣子；[SHORT_TIMEOUT_MS] 內畫面一點都沒變就回 null（PTT 對不給做的事常常一個字都不回）。 */
@@ -1722,6 +1829,12 @@ class Session(
 
         /** 文章檔案開頭的標頭：作者、標題、時間三行（`write_header`）。 */
         const val HEADER_LINES = 3
+
+        /** 編輯器 Esc-L 的提示（pttbbs `prompt_goto_line`）。 */
+        const val GOTO_LINE_PROMPT = "跳至第幾行"
+
+        /** 整個列表按 `#` 之後最下面一列的提示（pttbbs `select_by_aid`：「搜尋文章代碼(AID): #」）。 */
+        const val AID_PROMPT = "搜尋文章代碼"
 
         /** 板名只會是這些字（pttbbs `is_validboardname`）：這樣的查詢用板名補完找，其他的用中文關鍵字找。 */
         val BOARD_NAME_CHARS = Regex("""[A-Za-z0-9_\-]+""")

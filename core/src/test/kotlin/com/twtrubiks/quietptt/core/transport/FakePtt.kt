@@ -54,8 +54,9 @@ class FakePtt(
         onInput(text)
     }
 
-    /** 整個畫面換成 [screen]。 */
-    fun show(screen: String) = sendRaw(render(screen))
+    /** 整個畫面換成 [screen]；[cursorRow] 是畫完之後游標停在第幾列（0 起，行首），不給就停在最後寫的地方。 */
+    fun show(screen: String, cursorRow: Int? = null) =
+        sendRaw(render(screen) + (cursorRow?.let { Big5Uao.encode("\u001b[${it + 1};1H") } ?: ByteArray(0)))
 
     /** 原樣送出 bytes（測一個字被拆在兩個 frame 之類的）。 */
     fun sendRaw(bytes: ByteArray) {

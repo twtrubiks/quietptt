@@ -35,14 +35,13 @@ class ArticleListTest {
     @Test
     fun onlyOwnNumberedArticlesOutsideSearchCanBeManaged() {
         val mine = ArticleSummary(102, null, null, "11/07", "me", "標題")
-        assert(ownArticle(mine, account = "me", inSearch = false))
-        assert(!ownArticle(mine, account = "me", inSearch = true)) // PTT 在搜尋模式不給刪、不給改標題
-        assert(!ownArticle(mine, account = "", inSearch = false)) // 沒登入資訊
-        assert(!ownArticle(mine.copy(author = "someone"), account = "me", inSearch = false))
-        assert(!ownArticle(mine.copy(index = null), account = "me", inSearch = false)) // 置底文
-        assert(!ownArticle(mine.copy(author = "-", title = "(本文已被刪除) [me]"), account = "me", inSearch = false))
+        assert(ownArticle(mine, account = "me"))
+        assert(!ownArticle(mine, account = "")) // 沒登入資訊
+        assert(!ownArticle(mine.copy(author = "someone"), account = "me"))
+        assert(!ownArticle(mine.copy(index = null), account = "me")) // 置底文
+        assert(!ownArticle(mine.copy(author = "-", title = "(本文已被刪除) [me]"), account = "me"))
         // PTT 登入不分大小寫：打小寫登入，作者欄是註冊時的大小寫
-        assert(ownArticle(mine.copy(author = "Me"), account = "me", inSearch = false))
+        assert(ownArticle(mine.copy(author = "Me"), account = "me"))
         assert(sameAccount("Me", "mE"))
         assert(!sameAccount(null, "me"))
     }

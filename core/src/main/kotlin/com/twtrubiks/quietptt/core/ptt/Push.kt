@@ -61,8 +61,11 @@ sealed interface ArticleItem {
     }
 }
 
-/** [items] 的一則加上一個不會變的 [key]（App 列表的 key）：前面插進新讀的行時，列表照 key 留在原地，不會跳。 */
-data class ArticleRow(val key: Int, val item: ArticleItem)
+/**
+ * [items] 的一則加上一個不會變的 [key]（App 列表的 key）：前面插進新讀的行時，列表照 key 留在原地，不會跳。
+ * [line] 是這一則最後一列的行號（被切成好幾列的推文是最後那列；缺的那段是 0）。
+ */
+data class ArticleRow(val key: Int, val item: ArticleItem, val line: Int = 0)
 
 /** 簽名檔「※ 文章網址: https://www.ptt.cc/bbs/…」那列的網址（App 的「分享」）；還沒翻到或沒有那列就 null。 */
 fun ArticleText.articleUrl(): String? = lines.firstNotNullOfOrNull { ARTICLE_URL.find(it)?.groupValues?.get(1) }
@@ -127,6 +130,38 @@ fun ArticleText.editableBody(): List<String> {
     return body.subList(0, end).map { it.trimEnd() }
 }
 
+/**
+ * 一則推文在檔案裡的位置（App 的「編輯文章」在推文下面插回應、[Session.editArticle] 的 [PushReply]）：
+ * [fromEnd] 是它最後一列離文章最後一行幾行（最後一行是 0）——從後面數，本文裡有折行的長列也不會數歪；
+ * [line] 是那一列在文章頁看到的文字，進編輯器之後拿來對（[editorRowShows]）。
+ */
+data class PushAnchor(val fromEnd: Int, val line: String)
+
+/** 每一則推文的 [PushAnchor]，跟 [items] 裡的 [ArticleItem.Comment] 一則對一則、同一個順序。整篇要讀完（[ArticleText.complete]）才準。 */
+fun ArticleText.pushAnchors(): List<PushAnchor> {
+    val textOf = HashMap<Int, String>(lines.size)
+    for (i in lines.indices) textOf[numbers[i]] = lines[i]
+    return rows().filter { it.item is ArticleItem.Comment }.map { PushAnchor(lastLine - it.line, textOf[it.line].orEmpty()) }
+}
+
+/**
+ * 編輯器畫面上的一列 [row] 是不是文章頁看到的那列推文 [push]。
+ * 推文在檔案裡帶著色碼（pttbbs `FormatCommentString`：`ESC[1;37m推 ESC[33m代號ESC[mESC[33m: 內容ESC[m 時間`），
+ * 編輯器把 ESC 畫成「*」（`edit_outs_attr_n`），所以那列是「*[1;37m推 *[33m代號*[m*[33m: 內容*[m 時間」，
+ * 色碼佔了位置、後面（時間、太長的內容）被切在第 79 欄。拿掉「*[…m」之後要是 [push] 的開頭、而且至少到「:」後面；
+ * 最後一個字可能是被切一半的全形字，不算。
+ */
+internal fun editorRowShows(row: String, push: String): Boolean {
+    val shown = row.replace(EDITOR_COLOR, "").trimEnd()
+    val want = push.replace(EDITOR_COLOR, "").trimEnd()
+    val colon = want.indexOf(':')
+    if (colon < 0 || shown.length <= colon) return false
+    return want.startsWith(shown) || (shown.length > colon + 2 && want.startsWith(shown.dropLast(1)))
+}
+
+// 編輯器裡的色碼：ESC 畫成「*」
+private val EDITOR_COLOR = Regex("""\*\[[0-9;]*m""")
+
 /** 標頭佔幾列：作者、標題、時間，加上下面那條分隔線；沒有標頭就是 0。 */
 private fun ArticleText.headerRows(): Int {
     if (header == null) return 0
@@ -162,7 +197,7 @@ internal fun List<String>.toRows(colors: List<List<ColorSpan>>, numbers: List<In
         val parsed = parsePush(line)
         if (parsed == null) {
             val item = if (SIGNATURE.containsMatchIn(line)) ArticleItem.Signature(line) else ArticleItem.Line(line, colors.getOrElse(index) { emptyList() })
-            out += ArticleRow(key, item)
+            out += ArticleRow(key, item, number)
             lastFull = false
             continue
         }
@@ -172,11 +207,11 @@ internal fun List<String>.toRows(colors: List<List<ColorSpan>>, numbers: List<In
         if (previous != null && lastFull && push.type == PushType.ARROW &&
             push.user == previous.push.user && push.time == previous.push.time && push.ip == previous.push.ip
         ) {
-            out[out.lastIndex] = last.copy(item = previous.copy(push = previous.push.copy(text = previous.push.text + push.text)))
+            out[out.lastIndex] = last.copy(item = previous.copy(push = previous.push.copy(text = previous.push.text + push.text)), line = number)
         } else if (floorsKnown) {
-            out += ArticleRow(key, ArticleItem.Comment(push, floor = ++floor, nth = ++nth[push.type.ordinal]))
+            out += ArticleRow(key, ArticleItem.Comment(push, floor = ++floor, nth = ++nth[push.type.ordinal]), number)
         } else {
-            out += ArticleRow(key, ArticleItem.Comment(push, floor = 0, nth = 0))
+            out += ArticleRow(key, ArticleItem.Comment(push, floor = 0, nth = 0), number)
         }
         lastFull = full
     }

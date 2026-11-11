@@ -59,7 +59,7 @@ tools/capture/build/install/capture/bin/capture --ws
 tools/capture/build/install/capture/bin/capture --e2e MobileComm
 ```
 
-**會寫到 PTT 的**（發文、推文、回文、改標題、編輯內文、刪文）另外是 `capture --e2e-write`，**只在使用者明確要求時跑**：
+**會寫到 PTT 的**（發文、推文、回文、改標題、編輯內文與在推文下面回應、刪文）另外是 `capture --e2e-write`，**只在使用者明確要求時跑**：
 程式寫死只在 **Test 板**、只動自己剛發的那一篇（每一步之前確認列表上那篇的作者是自己），推文推在自己的文章上（PTT 只給 →），
 最後刪掉；中途失敗也會把那篇刪掉。回文是回自己那篇兩次（採用原標題＋引用原文、新標題＋不引用），讀回來對標題、內文、引言之後各自刪掉。順便走找看板（板名補完「Mo」「M」、中文「測試」），發文、刪文之後 PTT 的訊息畫面會印出來。
 
