@@ -188,12 +188,54 @@ class PushTest {
         assertEquals(listOf(ArticleItem.Line("hello")), ArticleText(listOf("hello"), 1, false).items())
     }
 
+    private fun art(vararg lines: String): List<Boolean> = lines.toList().toItems().map { (it as ArticleItem.Line).art }
+
+    @Test
+    fun rightAlignedColumnsAreOneTable() {
+        // 數字靠右對齊：起點差一欄，結尾在同一欄
+        assertEquals(
+            listOf(true, true, true, true),
+            art(
+                "代號  名稱      收盤    漲跌",
+                "2330  台積電    1050     +15",
+                "2317  鴻海       180      -2",
+                "2454  聯發科    1320    +40",
+            ),
+        )
+    }
+
+    @Test
+    fun tableReachesRowsPushedOutOfLine() {
+        // 第三列的字太長，欄位都對不上：緊貼著表格、自己有 3 個以上空白，跟著算；第四列沒有就不算，空行隔開的也不算
+        assertEquals(
+            listOf(true, true, true, false, false, false),
+            art(
+                "項目     價格     數量",
+                "手機     30000    2",
+                "超長的品項名稱   5   1",
+                "以上  含稅",
+                "",
+                "上班就少說話  多摸魚   摸啊摸啊摸  真爽",
+            ),
+        )
+    }
+
     @Test
     fun artAndTablesAreTold() {
         assertTrue(looksLikeArt("┌──────┬──────┐"))
         assertTrue(looksLikeArt("│ 型號 │ 價格 │"))
         assertTrue(looksLikeArt("███▓▓▒▒░░"))
-        assertTrue(looksLikeArt("項目     價格     數量"))
+        // 用空白排的欄位：緊鄰的列有字從同一欄開始才算
+        assertTrue(looksLikeArt("項目     價格     數量", below = "手機     30000    2"))
+        assertTrue(looksLikeArt("手機     30000    2", above = "項目     價格     數量"))
+        assertTrue(looksLikeArt("iPhone 15  30000", above = "項目       價格")) // 這列只隔 2 個空白，上一列隔得夠開
+        assertFalse(looksLikeArt("項目     價格     數量")) // 只有自己一列
+        // 拿空白當標點的句子（八卦板常見）：欄位對不上，是一般文字
+        assertFalse(looksLikeArt("我們處男還是乖一點   一口開可能就被說噁", below = "上班就少說話  多摸魚   摸啊摸啊摸  真爽"))
+        assertFalse(looksLikeArt("上班就少說話  多摸魚   摸啊摸啊摸  真爽", above = "我們處男還是乖一點   一口開可能就被說噁"))
+        assertFalse(looksLikeArt("我們處男還是乖一點   一口開可能就被說噁", above = "", below = ""))
+        // 開頭的詞一樣長、後面接空白：第一欄的結尾不算
+        assertFalse(looksLikeArt("我覺得   不行", below = "你覺得  可以"))
         assertFalse(looksLikeArt("去reddit隨便搜一下s24u green line ，開始爆發了"))
         assertFalse(looksLikeArt("這次不只垂直綠線，還有垂直紫線。"))
         assertFalse(looksLikeArt("a  b")) // 兩個空白不算

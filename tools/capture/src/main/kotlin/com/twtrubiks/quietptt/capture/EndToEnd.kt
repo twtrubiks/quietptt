@@ -19,7 +19,6 @@ import com.twtrubiks.quietptt.core.ptt.connectsWith
 import com.twtrubiks.quietptt.core.ptt.findUrls
 import com.twtrubiks.quietptt.core.ptt.header
 import com.twtrubiks.quietptt.core.ptt.items
-import com.twtrubiks.quietptt.core.ptt.looksLikeArt
 import com.twtrubiks.quietptt.core.ptt.mergedWith
 import com.twtrubiks.quietptt.core.record.Redactor
 import kotlinx.coroutines.flow.first
@@ -505,7 +504,7 @@ private fun checkLayout(text: ArticleText, listed: ArticleSummary, say: (String)
     val header = text.header
     val items = text.items()
     val body = items.filterIsInstance<ArticleItem.Line>()
-    val art = body.count { looksLikeArt(it.text) }
+    val art = body.count { it.art }
     val urls = items.sumOf { item ->
         when (item) {
             is ArticleItem.Line -> findUrls(item.text).size
@@ -516,7 +515,7 @@ private fun checkLayout(text: ArticleText, listed: ArticleSummary, say: (String)
     }
     say("  標頭：${header?.let { "看板 ${it.board}、時間 ${it.time}、暱稱 ${it.nickname != null}" }}")
     say("  本文 ${body.size} 列（等寬 $art 列）、簽名檔 ${items.count { it is ArticleItem.Signature }} 列、網址 $urls 個")
-    body.filter { looksLikeArt(it.text) }.take(3).forEach { say("  等寬：「${it.text.take(40)}」") }
+    body.filter { it.art }.take(3).forEach { say("  等寬：「${it.text.take(40)}」") }
     if (header == null) {
         say("  ✗ 認不出標頭：「${text.lines.firstOrNull()}」")
         return false

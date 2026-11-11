@@ -91,7 +91,6 @@ import com.twtrubiks.quietptt.core.ptt.findUrls
 import com.twtrubiks.quietptt.core.ptt.header
 import com.twtrubiks.quietptt.core.ptt.imageUrl
 import com.twtrubiks.quietptt.core.ptt.items
-import com.twtrubiks.quietptt.core.ptt.looksLikeArt
 import com.twtrubiks.quietptt.core.terminal.Big5Uao
 import com.twtrubiks.quietptt.core.terminal.ColorSpan
 import kotlinx.coroutines.flow.first
@@ -110,7 +109,7 @@ import kotlinx.coroutines.Dispatchers
  * 只在捲到附近時才讀，沒看的頁不抓。返回時看板頁會叫 `showBoard`，由它按左鍵退回列表。
  *
  * - 最上面是標題卡（[ArticleText.header]：標題、作者、看板、時間），標頭那三列與分隔線不再當本文印出來
- * - 本文一列一個 `Text`，用一般字型自動換行（BePTT 全用一般字型）；看起來是 ASCII 圖或表格的列（[looksLikeArt]）維持等寬、不換行，
+ * - 本文一列一個 `Text`，用一般字型自動換行（BePTT 全用一般字型）；看起來是 ASCII 圖或表格的列（`ArticleItem.Line.art`）維持等寬、不換行，
  *   橫向一起捲。簽名檔「※ 發信站」那幾列縮小變淡。網址可點（交給外部瀏覽器）；是圖片的網址（[imageUrl]，含 imgur）下面多一顆
  *   「開啟圖片」（BePTT 的按鈕），按了才抓、在原地展開（[InlineImage]），不自動載
  * - 推文（[ArticleText.items]）照 BePTT：左邊一條顏色（推綠、噓紅、→ 灰）、代號、樓層「12樓/推5」、時間靠右，
@@ -498,7 +497,7 @@ fun ArticleScreen(
                         }
                         itemsIndexed(rows, key = { _, row -> row.key }) { index, row ->
                             when (val item = row.item) {
-                                is ArticleItem.Line -> BodyLine(item.text, item.colors, artScroll, images)
+                                is ArticleItem.Line -> BodyLine(item.text, item.colors, item.art, artScroll, images)
                                 is ArticleItem.Signature -> Text(
                                     linkified(item.text),
                                     style = MaterialTheme.typography.labelSmall,
@@ -860,19 +859,20 @@ private fun HeaderRow(label: String, value: String) {
 }
 
 /**
- * 本文的一列：一般字型自動換行；像圖或表格的列（[looksLikeArt]）等寬、不換行、橫向一起捲（[artScroll]）。圖片網址下面有「開啟圖片」。
+ * 本文的一列：一般字型自動換行；像圖或表格的列（[art]，`ArticleItem.Line.art`）等寬、不換行、橫向一起捲（[artScroll]）。
+ * 兩種列的左邊對齊在同一條線上。圖片網址下面有「開啟圖片」。
  * [colors] 是 PTT 上這列的顏色（[ColorSpan]，`ArticleText.colors`）：照 ANSI 的 16 色上在字上（[ansiColors]），有底色的段畫底色。
  */
 @Composable
-fun BodyLine(text: String, colors: List<ColorSpan>, artScroll: ScrollState, images: OpenedImages) {
+fun BodyLine(text: String, colors: List<ColorSpan>, art: Boolean, artScroll: ScrollState, images: OpenedImages) {
     val styled = colored(linkified(text), colors)
-    if (looksLikeArt(text)) {
+    if (art) {
         Text(
             styled,
             fontFamily = FontFamily.Monospace,
             softWrap = false,
             maxLines = 1,
-            modifier = Modifier.fillMaxWidth().horizontalScroll(artScroll).padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(artScroll).padding(horizontal = 16.dp),
         )
     } else {
         Text(styled, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp))

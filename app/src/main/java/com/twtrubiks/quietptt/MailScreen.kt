@@ -62,7 +62,7 @@ fun MailScreen(session: Session, index: Int, preview: MailSummary?, onReply: () 
                         if (header != null) item(key = "header") { HeaderCard(header, boardLabel = "收件人") }
                         itemsIndexed(items, key = { row, _ -> row }) { _, item ->
                             when (item) {
-                                is ArticleItem.Line -> BodyLine(item.text, item.colors, artScroll, images)
+                                is ArticleItem.Line -> BodyLine(item.text, item.colors, item.art, artScroll, images)
                                 is ArticleItem.Signature -> Text(
                                     linkified(item.text),
                                     style = MaterialTheme.typography.labelSmall,

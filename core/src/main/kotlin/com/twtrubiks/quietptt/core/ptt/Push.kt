@@ -43,8 +43,11 @@ data class ArticleHeader(
 
 /** 文章的一個段落：本文的一列、簽名檔的一列，或一則推文。 */
 sealed interface ArticleItem {
-    /** 本文的一列；[colors] 是這列有顏色的幾段（PTT 的 ANSI 色，[ArticleText.colors]），沒有就空的。 */
-    data class Line(val text: String, val colors: List<ColorSpan> = emptyList()) : ArticleItem
+    /**
+     * 本文的一列；[colors] 是這列有顏色的幾段（PTT 的 ANSI 色，[ArticleText.colors]），沒有就空的。
+     * [art] 是這列要不要用等寬字型畫（[artLines]，看了上下的列才知道）。
+     */
+    data class Line(val text: String, val colors: List<ColorSpan> = emptyList(), val art: Boolean = false) : ArticleItem
 
     /** 簽名檔那幾列「※ 發信站: …」「※ 文章網址: …」「※ 編輯: …」（BePTT 把它們縮小、變淡）。 */
     data class Signature(val text: String) : ArticleItem
@@ -185,6 +188,7 @@ internal fun List<String>.toRows(colors: List<List<ColorSpan>>, numbers: List<In
     var floor = 0
     var floorsKnown = true
     val nth = IntArray(PushType.entries.size)
+    val art = artLines(this, numbers)
     for ((index, line) in withIndex()) {
         val number = numbers[index]
         val previousNumber = numbers.getOrNull(index - 1)
@@ -196,7 +200,7 @@ internal fun List<String>.toRows(colors: List<List<ColorSpan>>, numbers: List<In
         val key = if (previousNumber == number) number * 2 + 1 else number * 2
         val parsed = parsePush(line)
         if (parsed == null) {
-            val item = if (SIGNATURE.containsMatchIn(line)) ArticleItem.Signature(line) else ArticleItem.Line(line, colors.getOrElse(index) { emptyList() })
+            val item = if (SIGNATURE.containsMatchIn(line)) ArticleItem.Signature(line) else ArticleItem.Line(line, colors.getOrElse(index) { emptyList() }, art[index])
             out += ArticleRow(key, item, number)
             lastFull = false
             continue
@@ -220,10 +224,69 @@ internal fun List<String>.toRows(colors: List<List<ColorSpan>>, numbers: List<In
 
 /**
  * 這一列是不是 ASCII 圖、對齊的表格之類要靠等寬字型的東西：有製表符（「│─┌┐└┘├┤┬┴┼」、「═║╔」）、方塊（「█▓▒░▀▄」），
- * 或字與字之間連著 3 個以上空白（用空白排的欄位）。本文其他的列用一般字型自動換行（BePTT 全部用一般字型，表格會歪）。
+ * 或是用空白排的欄位：這列的一段空白（[Gap]）跟緊鄰的上一列 [above] 或下一列 [below] 的一段空白對得上
+ * （兩邊都至少 2 個空白、其中一邊至少 3 個）。對得上是空白後面的字從同一欄開始（靠左對齊的欄），
+ * 或空白前面的字在同一欄結束（靠右對齊的欄，數字常這樣排）；每列第一段空白前面的結尾不算：
+ * 第一欄本來就靠左，開頭的詞一樣長不代表是表格。只有自己一列有一串空白也不算：很多人拿空白當標點，那是一般的句子。
+ * 本文其他的列用一般字型自動換行（BePTT 全部用一般字型，表格會歪）。整篇怎麼判斷看 [artLines]。
  */
-fun looksLikeArt(line: String): Boolean =
-    line.any { it in '\u2500'..'\u259F' } || ALIGNED_BY_SPACES.containsMatchIn(line)
+fun looksLikeArt(line: String, above: String? = null, below: String? = null): Boolean {
+    if (hasArtChars(line)) return true
+    val mine = gaps(line)
+    if (mine.isEmpty()) return false
+    return listOfNotNull(above, below).any { other ->
+        val theirs = gaps(other)
+        mine.withIndex().any { (i, a) ->
+            theirs.withIndex().any { (j, b) ->
+                maxOf(a.spaces, b.spaces) >= WIDE_GAP && (a.start == b.start || (i > 0 && j > 0 && a.end == b.end))
+            }
+        }
+    }
+}
+
+/**
+ * 每一列要不要用等寬字型畫（[ArticleItem.Line.art]）。[numbers] 是每一列的行號：行號連著才是緊鄰的列（中間沒讀的那段不算）。
+ * 先一列一列看（[looksLikeArt]），再把表格往上下延伸：緊貼著表格列、自己也有連著 3 個以上空白的列也算
+ * （某一列的字特別長、把後面的欄推歪了，整張表還是一起等寬），到空行或沒有這種空白的列為止。
+ */
+internal fun artLines(lines: List<String>, numbers: List<Int>): BooleanArray {
+    fun above(i: Int) = i > 0 && numbers[i - 1] == numbers[i] - 1
+    fun below(i: Int) = i < lines.lastIndex && numbers[i + 1] == numbers[i] + 1
+    val art = BooleanArray(lines.size) { i ->
+        looksLikeArt(lines[i], if (above(i)) lines[i - 1] else null, if (below(i)) lines[i + 1] else null)
+    }
+    val wide = BooleanArray(lines.size) { i -> !art[i] && gaps(lines[i]).any { it.spaces >= WIDE_GAP } }
+    for (i in lines.indices) if (wide[i] && above(i) && art[i - 1]) art[i] = true
+    for (i in lines.indices.reversed()) if (wide[i] && below(i) && art[i + 1]) art[i] = true
+    return art
+}
+
+private fun hasArtChars(line: String) = line.any { it in '\u2500'..'\u259F' }
+
+/** 字與字之間的一段空白：前面的字在第 [end] 欄結束（不含）、後面的字從第 [start] 欄開始，中間 [spaces] 個空白。 */
+private class Gap(val end: Int, val start: Int, val spaces: Int)
+
+/** 這一列裡連著 2 個以上的空白，由左到右（全形字算 2 欄）；列首的縮排、列尾的空白不算。 */
+private fun gaps(line: String): List<Gap> {
+    val out = ArrayList<Gap>()
+    var col = 0
+    var spaces = 0
+    var seenText = false
+    for (ch in line) {
+        if (ch == ' ') {
+            spaces++
+        } else {
+            if (seenText && spaces >= 2) out += Gap(col - spaces, col, spaces)
+            seenText = true
+            spaces = 0
+        }
+        col += if (Screen.isWide(ch)) 2 else 1
+    }
+    return out
+}
+
+// 連著幾個空白才像是在排欄位
+private const val WIDE_GAP = 3
 
 /** 一列文字裡的網址（http／https）：從哪個字到哪個字、網址本身。結尾的標點（「。」「，」「)」之類）不算網址。 */
 fun findUrls(text: String): List<Pair<IntRange, String>> = URL.findAll(text).mapNotNull { match ->
@@ -307,9 +370,6 @@ private val TIME_LINE = Regex("""^\s*時間\s*(.*?)\s*$""")
 
 // 簽名檔那幾列（BePTT 用同一個樣子認）
 private val SIGNATURE = Regex("""^※\s+(發信站|文章網址|轉錄者|編輯|轉錄至|引述)[:：]""")
-
-// 字與字之間連著 3 個以上空白：用空白排的欄位
-private val ALIGNED_BY_SPACES = Regex("""\S {3,}\S""")
 
 // 網址只有 ASCII（RFC 3986 的那些字，不含引號與括號；中文、全形標點都不是網址）
 private val URL = Regex("""https?://[A-Za-z0-9\-._~:/?#\[\]@!$&*+,;=%]+""")
