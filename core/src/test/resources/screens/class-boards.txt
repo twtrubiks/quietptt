@@ -1,0 +1,24 @@
+【看板列表】                     批踢踢實業坊
+[y]只列最愛 [→]進入 [s]找看板 [/]搜尋 [c]新文章 [S]排序 [PgUp]上頁 [PgDn]下頁
+   編號   看  板       類別   中   文   敘   述                 … 板   主
+>     1 ˇAjax         程設 ◎[Ajax] 本版討論Javascript            taicomjp
+      2   AndroidDev   程設 ◎[AndroidDev] 開發者們，歡迎光臨      changyuhen…
+      3 ˇASM          程設 ◎組合的藝術                           loveflames
+      4 ˇC_and_CPP    程設 ◎即日起有限開放Rust討論               lc85301
+      5 ˇC_Sharp      程設 ◎Standard ECMA-334: C#                ithinkurdumb
+      6 ˇCodeJob      工作 ◎Codejob板 新版規v1.2出爐             femlro/joh
+      7 ˇCompBook     資訊 ◎ 電腦書 資工用書                     rjjq
+      8 ˇCompilerDev  開發 ◎編譯器開發(試閱中...)                mshockwave
+      9 ˇCSSE         研討 ◎電腦科學及軟體工程                   quii11
+     10   Database     資庫 ◎[ DB ] 歡迎一起討論資料庫！          ann141414
+     11 ˇDataScience  研討 ◎防疫在家做資料科學                   st1009/pat…
+     12   Eclipse      軟體 ◎[Eclipse] Android開發改用AS囉        freesamael
+     13   Editor       軟體 ◎編輯器版                             dryman
+     14 ˇFlash        軟體 ◎你今天Flash了嗎?
+     15   Fortran      程式 ◎Fortran 程式語言                     blc
+     16   IPv6         網路 ◎次世代網際網路協定                   louk
+     17 ˇjava         程設 ◎[Java]理性討論、再戰27年
+     18 ˇLaTeX        軟體 ◎論文排版好幫手                       Hsins
+     19 ˇLinuxDev     開發 ◎Linux程式開發:請先RTFM+STFW          sivle/maya…
+     20   MacDev       開發 ◎Mac/iOS 程式開發
+ 看板列表  (m)加入最愛 (v)已讀/未讀 (t)標記                 (←)回上層 (h)說明

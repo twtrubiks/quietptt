@@ -29,8 +29,8 @@ permissions:
   contents: write
 
 env:
-  # 發版金鑰（quietptt-release.p12）的憑證 SHA-256，64 碼小寫十六進位。還沒產生金鑰：照 docs/release-key.md 做完填進來
-  EXPECTED_CERT: ''
+  # 發版金鑰（quietptt-release.p12，2026-11-07 產生）的憑證 SHA-256，64 碼小寫十六進位。**不要改**：改了表示換了金鑰，手機上的舊版就不能更新
+  EXPECTED_CERT: '60153e6f7aed893678ceadbc3108d89370648f186888bf89fba5097e67c4a209'
 
 jobs:
   version:

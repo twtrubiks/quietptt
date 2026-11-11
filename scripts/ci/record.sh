@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在模擬器上先跑 DeviceTest（KeyStore 加解密帳密，不錄影），再一邊錄影一邊跑 DemoRecordingTest，
+# 在模擬器上先跑 DeviceTest（KeyStore 加解密帳密、動圖解碼，不錄影），再一邊錄影一邊跑 DemoRecordingTest，
 # 最後覆蓋安裝 release 版做冒煙測試（打開 App 沒有閃退、登入頁有出來）。
 # 模擬器連不連得到 ptt.cc 不一定（GitHub runner 通常連得到，但不靠它）：錄影與冒煙測試都只走到登入頁，不真的登入。
 # 輸出到 $1（預設 out/）：device-test.txt、demo.raw.mp4、instrument.txt、logcat.txt、screenshots/、release-smoke.txt、logcat-release.txt

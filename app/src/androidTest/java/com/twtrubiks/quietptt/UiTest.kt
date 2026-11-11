@@ -63,6 +63,7 @@ abstract class UiTest {
     }
 
     protected companion object {
-        fun res(tag: String): BySelector = By.res("com.twtrubiks.quietptt", tag)
+        /** Compose 的 testTag：`testTagsAsResourceId` 給的 resource-id 就是 tag 本身，沒有「套件:id/」前綴。 */
+        fun res(tag: String): BySelector = By.res(tag)
     }
 }

@@ -16,6 +16,15 @@ data class Attr(
 }
 
 /**
+ * 一列裡顏色不是預設（白字黑底、不粗）的一段：[start]（含）到 [end]（不含）是 [Screen.line] 那個字串裡的字元位置（全形字算一個字，不是欄）。
+ * [fg]、[bg] 是 ANSI 的 0～7（反白已經換過來：前景跟背景對調），[bold] 是亮色（PTT 的 `1;3x`）。
+ * 文章頁靠它把 PTT 的彩色字帶到 App（`Page.ArticleView.colors`）；閃爍不管。
+ */
+data class ColorSpan(val start: Int, val end: Int, val fg: Int, val bg: Int, val bold: Boolean) {
+    val length: Int get() = end - start
+}
+
+/**
  * 終端的一格。全形字佔兩格：第一格放字，第二格是 [wideTail]（字一樣，只是標記），
  * 取整列文字時跳過 tail，照欄位切字串時兩格都算。
  */
@@ -50,6 +59,32 @@ class Screen(
             val cell = cellsOfRow[col]
             if (!cell.wideTail || col == fromCol) append(cell.ch)
         }
+    }
+
+    /**
+     * 第 [row] 列有顏色的那幾段（[ColorSpan]，照字元位置、跟 [line] 對得上），預設色的字不算；整列預設色就是空的。
+     * 連著的同色字併成一段。測試的 fixture（[of]）沒有顏色，永遠是空的。
+     */
+    fun spans(row: Int): List<ColorSpan> {
+        val out = ArrayList<ColorSpan>()
+        var index = 0
+        var current: ColorSpan? = null
+        for (cell in cells[row]) {
+            if (cell.wideTail) continue
+            val attr = cell.attr
+            val fg = if (attr.reverse) attr.bg else attr.fg
+            val bg = if (attr.reverse) attr.fg else attr.bg
+            val plain = fg == Attr.DEFAULT_FG && bg == Attr.DEFAULT_BG && !attr.bold
+            val open = current
+            current = when {
+                plain -> { if (open != null) out += open; null }
+                open != null && open.fg == fg && open.bg == bg && open.bold == attr.bold -> open.copy(end = index + 1)
+                else -> { if (open != null) out += open; ColorSpan(index, index + 1, fg, bg, attr.bold) }
+            }
+            index++
+        }
+        current?.let { out += it }
+        return out
     }
 
     /** 畫面上有沒有這段文字（任一列）。 */

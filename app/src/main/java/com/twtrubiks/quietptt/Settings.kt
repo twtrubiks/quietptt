@@ -12,6 +12,15 @@ enum class ThemeMode(val label: String) {
     DARK("深色"),
 }
 
+/** 文章與信的字級（[ArticleTextScale]）：系統的字體大小再乘 [scale]。 */
+enum class ArticleTextSize(val label: String, val scale: Float) {
+    SMALL("小", 0.85f),
+    NORMAL("標準", 1f),
+    LARGE("大", 1.15f),
+    LARGER("更大", 1.3f),
+    LARGEST("最大", 1.5f),
+}
+
 enum class TransportKind(val label: String) {
     SSH("SSH（ptt.cc:22）"),
     WEBSOCKET("WebSocket（ws.ptt.cc）"),

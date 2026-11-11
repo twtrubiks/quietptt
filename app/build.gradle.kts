@@ -10,7 +10,8 @@ plugins {
 
 android {
     namespace = "com.twtrubiks.quietptt"
-    compileSdk = 36
+    // AndroidX（core 1.19、Compose 1.12、lifecycle 2.11）與 okhttp-android 5.5 都要求 compileSdk 37；targetSdk 維持 36（執行時的行為不變）
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.twtrubiks.quietptt"
@@ -127,6 +128,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.kotlinx.coroutines.core)
     // WebSocket 連線的 OkHttpClient 由 App 建（整個 App 一個）

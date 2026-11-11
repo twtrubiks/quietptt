@@ -1,10 +1,10 @@
 # 在 claude.ai/code 設定雲端開發環境
 
 全程在 [Claude Code 雲端 session](https://claude.ai/code) 開發，不需要在自己的電腦安裝 Android Studio、SDK 或模擬器。
-看畫面這一步交給 GitHub Actions 的模擬器錄影（`.github/workflows/record.yml`）；真的 PTT 畫面在自己電腦上用 `tools/capture` 抓。
+看畫面這一步交給 GitHub Actions 的模擬器錄影（`.github/workflows/record.yml`）；真的 PTT 畫面在 VM 用 `tools/capture --ws` 抓（網路要連得到 ptt.cc，見下面）。
 
 **已經有其他 Android 專案用的雲端環境可以直接沿用**：只要 `ANDROID_HOME=/opt/android-sdk` 且網路放行 `dl.google.com`，
-少的 platform（這裡是 android-36）AGP 會自己下載。沒有的話照下面三步設定一次。
+少的 platform AGP 會自己下載。沒有的話照下面三步設定一次。
 
 ## 1. 連 GitHub
 
@@ -31,14 +31,14 @@
   - script 只在第一次開 session 時執行（約幾分鐘），之後的 session 直接沿用快取。
   - 修改 script 或 Allowed domains，或快取大約過了 7 天，會再重跑一次。
   - script 失敗也不會讓 session 起不來，SDK 沒裝好時看 `/var/log/android-sdk-setup.log`。
-- **VM 裡連不到 ptt.cc 是正常的**：Custom 網路只放行套件庫。連線層靠 MockWebServer 與畫面 fixture 測，真的連線在 CI 的模擬器或手機上驗。
+- **ptt.cc**：Custom 網路只放行套件庫，連不到 ptt.cc 是正常的；網路設成 Full（unrestricted）時走 WebSocket（`wss://ws.ptt.cc/bbs`）連得到，SSH 的 22 埠仍然被擋。
+  連線層的測試一律靠 MockWebServer 與畫面 fixture；真的畫面用 `tools/capture --ws` 抓（帳密走環境變數 `PTT_ID`、`PTT_PASSWORD`，見 `docs/testing.md`）。
 
 ## 3. 開 session
 
 選剛才建立的環境和這個 repo，然後寫 prompt，例如：
 
-> 依照 CLAUDE.md 的「第一次 session」先 build 一次，修到 `./gradlew test assembleDebug assembleRelease` 過。
-> 然後告訴我要用 tools/capture 抓哪幾張畫面。
+> 照 CLAUDE.md 的「在 VM 內驗證」build 一次，修到 `./gradlew test assembleDebug assembleRelease assembleDebugAndroidTest` 過。
 
 ## 常見問題
 

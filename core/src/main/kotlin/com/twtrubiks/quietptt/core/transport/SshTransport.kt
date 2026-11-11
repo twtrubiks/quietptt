@@ -28,7 +28,7 @@ class SshTransport(
     private var channel: ChannelShell? = null
     private var output: OutputStream? = null
 
-    override suspend fun connect() = withContext(Dispatchers.IO) {
+    override suspend fun connect(): Unit = withContext(Dispatchers.IO) {
         val jsch = JSch().apply { setKnownHosts(knownHosts.byteInputStream()) }
         val s = jsch.getSession(PttHost.SSH_USER, host, port).apply {
             setConfig("StrictHostKeyChecking", "yes")
@@ -69,7 +69,7 @@ class SshTransport(
 
     override suspend fun read(): ByteArray? = incoming.receiveCatching().getOrNull()
 
-    override suspend fun write(bytes: ByteArray) = withContext(Dispatchers.IO) {
+    override suspend fun write(bytes: ByteArray): Unit = withContext(Dispatchers.IO) {
         val out = checkNotNull(output) { "還沒連線" }
         out.write(bytes)
         out.flush()

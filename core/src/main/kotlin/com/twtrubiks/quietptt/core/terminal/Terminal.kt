@@ -4,7 +4,9 @@ package com.twtrubiks.quietptt.core.terminal
  * 終端模擬：吃連線送來的 bytes，照 vt100 的跳脫序列與 Big5-UAO 更新 [ScreenBuffer]。
  *
  * 只做 PTT 會用到的：游標移動（CUP、CUU/CUD/CUF/CUB）、清畫面／清列（ED、EL）、顏色（SGR）、存取游標。
- * 其他序列認得出來就忽略，不會壞掉。
+ * 其他序列認得出來就忽略，不會壞掉。OSC（`ESC ]` … `BEL` 或 `ESC \`）整段吃掉不顯示：
+ * PTT 文章裡的網址用 OSC 8 包成超連結（`ESC ]8;;網址 ESC \ 網址 ESC ]8;; ESC \`，真機錄到的），
+ * 以前把 `8;;網址` 當字印出來，那列變長折到下一列，之後每一頁都對不齊、最下面的進度列也壞掉。
  *
  * 全形字的兩個 byte 中間可能夾跳脫序列（PTT 的彩色 ANSI 常這樣，一個字左右兩半不同色），
  * 所以 lead byte 先記著（[pendingLead]），等 trail byte 來才落字，顏色用後半的。
@@ -12,12 +14,13 @@ package com.twtrubiks.quietptt.core.terminal
 class Terminal(rows: Int = Screen.ROWS, cols: Int = Screen.COLS) {
     val buffer = ScreenBuffer(rows, cols)
 
-    private enum class State { GROUND, ESC, CSI, CHARSET }
+    private enum class State { GROUND, ESC, CSI, CHARSET, OSC, OSC_ESC }
 
     private var state = State.GROUND
     private val params = StringBuilder()
     private var pendingLead = -1
     private var attr = Attr.DEFAULT
+    private var oscLength = 0
 
     fun feed(bytes: ByteArray) {
         for (b in bytes) feed(b.toInt() and 0xFF)
@@ -30,6 +33,15 @@ class Terminal(rows: Int = Screen.ROWS, cols: Int = Screen.COLS) {
             State.GROUND -> ground(b)
             State.ESC -> escape(b)
             State.CHARSET -> state = State.GROUND
+            State.OSC -> when (b) {
+                0x07 -> state = State.GROUND // BEL 結束
+                0x1B -> state = State.OSC_ESC
+                0x18, 0x1A -> state = State.GROUND // CAN、SUB 中止
+                // 一直沒結束（壞掉的序列）：不要把後面的畫面全吃掉
+                else -> if (++oscLength > MAX_OSC) state = State.GROUND
+            }
+            // ESC \（ST）結束；ESC 後面接別的字：OSC 中止，那個 ESC 照一般跳脫序列處理
+            State.OSC_ESC -> if (b == '\\'.code) state = State.GROUND else escape(b)
             State.CSI -> when (b) {
                 in 0x30..0x3F -> params.append(b.toChar())
                 in 0x20..0x2F -> Unit
@@ -88,6 +100,10 @@ class Terminal(rows: Int = Screen.ROWS, cols: Int = Screen.COLS) {
                 buffer.lineFeed()
             }
             '(', ')' -> state = State.CHARSET
+            ']' -> {
+                oscLength = 0
+                state = State.OSC
+            }
             else -> Unit
         }
     }
@@ -131,5 +147,10 @@ class Terminal(rows: Int = Screen.ROWS, cols: Int = Screen.COLS) {
                 else -> attr
             }
         }
+    }
+
+    private companion object {
+        /** OSC 最長吃多少 byte 還沒看到結尾就放棄（網址很長也不會超過這個）。 */
+        const val MAX_OSC = 4096
     }
 }

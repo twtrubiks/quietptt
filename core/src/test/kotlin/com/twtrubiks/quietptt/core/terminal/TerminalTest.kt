@@ -93,4 +93,47 @@ class TerminalTest {
         feed("\u001b[?25lA\u001b[?25h")
         assertEquals("A", terminal.snapshot().line(0).trimEnd())
     }
+
+    @Test
+    fun hyperlinksAreInvisible() {
+        // 真機文章裡的網址：OSC 8 包起來，ST（ESC \）結尾。只留看得到的那段
+        feed("see \u001b]8;;https://example.com/very/long\u001b\\https://example.com\u001b]8;;\u001b\\ ok")
+        assertEquals("see https://example.com ok", terminal.snapshot().line(0).trimEnd())
+    }
+
+    @Test
+    fun oscEndsWithBellToo() {
+        feed("\u001b]0;window title\u0007after")
+        assertEquals("after", terminal.snapshot().line(0).trimEnd())
+    }
+
+    @Test
+    fun escapeInsideOscThatIsNotStStartsANewSequence() {
+        feed("\u001b]8;;broken\u001b[2;1Hnext")
+        assertEquals("next", terminal.snapshot().line(1).trimEnd())
+    }
+
+    @Test
+    fun unterminatedOscDoesNotSwallowTheRestForever() {
+        feed("\u001b]8;;" + "x".repeat(5000) + "visible")
+        assertTrue(terminal.snapshot().toString().contains("visible"))
+    }
+
+    @Test
+    fun colorSpansFollowCharacterPositionsNotColumns() {
+        // 「紅」是全形（兩欄、一個字）：後面「x」的位置是第 2 個字，不是第 3 欄；粗體亮色、反白對調、預設色不算
+        feed("\u001b[1;31m")
+        feed("", 0xAC.toByte(), 0x75.toByte()) // 紅
+        feed("x\u001b[0m plain \u001b[44m  \u001b[7;32mR\u001b[0m")
+        val spans = terminal.snapshot().spans(0)
+        assertEquals(
+            listOf(
+                ColorSpan(0, 2, fg = 1, bg = 0, bold = true),
+                ColorSpan(9, 11, fg = 7, bg = 4, bold = false),
+                ColorSpan(11, 12, fg = 4, bg = 2, bold = false),
+            ),
+            spans,
+        )
+        assertTrue(terminal.snapshot().spans(1).isEmpty())
+    }
 }

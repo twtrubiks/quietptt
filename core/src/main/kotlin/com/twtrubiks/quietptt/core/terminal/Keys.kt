@@ -15,5 +15,8 @@ object Keys {
     const val PAGE_UP = "\u001b[5~"
     const val PAGE_DOWN = "\u001b[6~"
 
+    /** Ctrl-L：PTT 清掉畫面整頁重畫（pttbbs `system_key_hook`，哪裡都能按、不算一個鍵）。 */
+    const val CTRL_L = "\u000c"
+
     fun ctrl(letter: Char): String = (letter.uppercaseChar().code - 'A'.code + 1).toChar().toString()
 }
