@@ -1,5 +1,6 @@
 package com.twtrubiks.quietptt
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,20 +14,27 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 /**
- * 設定：連線方式（預設 SSH，下次連線生效）、深色模式、文章字級、滑動回上一頁的方向、記住帳號與密碼、自動登入、重複登入時刪除其他連線、清除搜尋紀錄、登出／忘記帳號。
+ * 設定：連線方式（預設 SSH，下次連線生效）、深色模式、文章字級、滑動回上一頁的方向、記住帳號與密碼、自動登入、重複登入時刪除其他連線、
+ * 文末加上「Sent from QuietPTT」、清除搜尋紀錄、登出／忘記帳號，最下面「關於」（版本、GitHub 的網址）。
  * 登入著的時候（[account] 不是 null）「登出」上面寫目前登入的帳號。
  * 這裡沒有、以後也不會有的：遙測開關（因為沒有遙測）、背景通知、前景服務。
  */
 @Composable
 fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
-    val container = LocalContext.current.container
+    val context = LocalContext.current
+    val container = context.container
+    val version = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+    }
     Column(Modifier.fillMaxSize()) {
         AppBar("設定", onBack = onBack)
         // 項目多了，小手機放不下：整頁可以捲
@@ -113,6 +121,16 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
             )
 
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Switch(
+                    checked = container.sentFrom.value,
+                    onCheckedChange = container.sentFrom::set,
+                    modifier = Modifier.testTag("sent_from_switch"),
+                )
+                Text("文末加上「Sent from QuietPTT」", modifier = Modifier.padding(start = 8.dp))
+            }
+            Text("發文、回文時在內文最後面加兩列「-----」「Sent from QuietPTT」（不寫手機型號）；發文頁、回文頁也能勾", style = MaterialTheme.typography.bodySmall)
+
             Button(
                 onClick = { container.searchHistory.clearAll() },
                 enabled = !container.searchHistory.isEmpty,
@@ -136,6 +154,29 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
             ) {
                 Text("忘記所有帳號與密碼")
             }
+
+            Text("關於", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp))
+            Text("QuietPTT $version", modifier = Modifier.padding(top = 4.dp).testTag("about_version"))
+            Text("沒有廣告、沒有遙測、不在背景做事，對外只連 ptt.cc。原始碼公開：", style = MaterialTheme.typography.bodySmall)
+            AboutLink("GitHub 原始碼", GITHUB_URL, "about_github")
+            AboutLink("問題回報、建議", "$GITHUB_URL/issues", "about_issues")
         }
+    }
+}
+
+/** 「關於」裡的一列連結：[label] 與下面小字的網址，點了交給外部瀏覽器（手機上沒有瀏覽器就跳一句話）。 */
+@Composable
+private fun AboutLink(label: String, url: String, tag: String) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { runCatching { uriHandler.openUri(url) }.onFailure { context.toast("打不開連結：$url") } }
+            .padding(vertical = 8.dp)
+            .testTag(tag),
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.primary)
+        Text(url.removePrefix("https://"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

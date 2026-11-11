@@ -79,6 +79,30 @@ class ReplyPostTest {
     // ---- 按鍵 ----
 
     @Test
+    fun footerGoesAfterTheQuote() = runBlocking {
+        val ptt = mobileComm()
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) {
+            session.replyPost("MobileComm", 153897, ORIGINAL, PostReply("推一個", footer = "-----\nSent from QuietPTT"))
+        }
+        // 內文打在引言上面；到檔案最後一行的行尾（引言下面那列空的），Enter 一下再接
+        assertEquals(
+            listOf("推一個\r\r", Keys.ctrl('T') + Keys.ctrl('E') + "\r-----\rSent from QuietPTT", Keys.ctrl('X'), "s\r"),
+            ptt.received.drop(5).take(4),
+        )
+    }
+
+    @Test
+    fun footerFollowsTheBodyWithoutAQuote() = runBlocking {
+        val ptt = mobileComm()
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) {
+            session.replyPost("MobileComm", 153897, ORIGINAL, PostReply("推一個", quote = false, footer = "-----\nSent from QuietPTT"))
+        }
+        assertEquals(listOf("推一個\r\r-----\rSent from QuietPTT", Keys.ctrl('X'), "s\r"), ptt.received.drop(5).take(3))
+    }
+
+    @Test
     fun replyKeepsTheTitleQuotesAndTypesAboveTheQuote() = runBlocking {
         val ptt = mobileComm()
         val session = connect(ptt)

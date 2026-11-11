@@ -6,6 +6,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 
+/** 發文、回文時接在內文最後面的那兩列（設定「文末加上 Sent from QuietPTT」開著才加）。不寫手機型號。 */
+const val SENT_FROM = "-----\nSent from QuietPTT"
+
+/** 原始碼（設定頁「關於」）。 */
+const val GITHUB_URL = "https://github.com/twtrubiks/quietptt"
+
 enum class ThemeMode(val label: String) {
     SYSTEM("跟系統"),
     LIGHT("淺色"),

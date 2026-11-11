@@ -84,7 +84,7 @@ fun ReplyPostScreen(
         if (sending.active || sending.unconfirmed) return
         sending.active = true
         sending.error = null
-        val reply = PostReply(body, newTitle.trim().takeIf { titleChanged }, quote, signature.first())
+        val reply = PostReply(body, newTitle.trim().takeIf { titleChanged }, quote, signature.first(), if (container.sentFrom.value) SENT_FROM else "")
         container.scope.launch {
             try {
                 session.replyPost(board, index, original, reply, search)
@@ -158,7 +158,8 @@ fun ReplyPostScreen(
                 minLines = 10,
                 modifier = Modifier.fillMaxWidth().testTag("reply_body"),
             )
-            Spacer(Modifier.height(16.dp))
+            CheckRow("文末加上「Sent from QuietPTT」", container.sentFrom.value, "reply_sent_from", container.sentFrom::set)
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onBack) { Text("取消") }
                 TextButton(

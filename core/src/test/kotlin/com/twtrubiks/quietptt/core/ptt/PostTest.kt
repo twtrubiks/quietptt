@@ -86,6 +86,16 @@ class PostTest {
     }
 
     @Test
+    fun postAddsTheFooterAfterABlankLine() = runBlocking {
+        val ptt = gossiping()
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) {
+            session.post("Gossiping", NewPost(category = null, title = "有尾巴", body = "安安\n", footer = "-----\nSent from QuietPTT"))
+        }
+        assertEquals("安安\r\r-----\rSent from QuietPTT", ptt.received[3])
+    }
+
+    @Test
     fun aProblemAfterSavingSaysThePostMayBeOut() = runBlocking {
         // 答了 s 之後停在認不出來的畫面：文章可能已經發出去了，不能當成一般的失敗讓人重試（會發兩篇）
         val ptt = gossiping(strangeAfterSave = true)

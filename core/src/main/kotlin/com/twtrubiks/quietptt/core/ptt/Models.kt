@@ -258,8 +258,9 @@ data class ArticleSearch(val kind: SearchKind, val query: String)
 /**
  * 要發的一篇文章（`Session.post`）。[category] 是看板分類裡的第幾個（0 起；null 是「不選」，標題前不加「[分類]」），
  * [title] 不含分類（PTT 自己會加在前面），[signature] 是簽名檔：'0' 不加、'1'～'9' 第幾個、'x' 隨機（pttbbs 的「請選擇簽名檔」）。
+ * [footer] 是接在內文最後面的字（App 的「Sent from QuietPTT」；空的就不加），跟內文之間空一行。
  */
-data class NewPost(val category: Int?, val title: String, val body: String, val signature: Char = '0') {
+data class NewPost(val category: Int?, val title: String, val body: String, val signature: Char = '0', val footer: String = "") {
     init {
         require(signature == 'x' || signature in '0'..'9') { "簽名檔只能是 0～9 或 x" }
     }
@@ -299,13 +300,14 @@ data class PushReply(val fromEnd: Int, val push: String, val text: String)
 
 /**
  * 回一篇文章到看板（`Session.replyPost`）：[title] 是 null 就用 PTT 給的標題（「Re: 原標題」，「採用原標題」答 y），不然換成這個；
- * [quote] 是「請問要引用原文嗎」答 y（引言放在內文下面）；[signature] 同 [NewPost]。
+ * [quote] 是「請問要引用原文嗎」答 y（引言放在內文下面）；[signature]、[footer] 同 [NewPost]（有引言的話 [footer] 接在引言後面，整篇的最後）。
  */
 data class PostReply(
     val body: String,
     val title: String? = null,
     val quote: Boolean = true,
     val signature: Char = '0',
+    val footer: String = "",
 ) {
     init {
         require(signature == 'x' || signature in '0'..'9') { "簽名檔只能是 0～9 或 x" }

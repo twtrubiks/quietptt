@@ -76,7 +76,7 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
         if (sending.unconfirmed) return // 可能已經發出去了：不再送一次
         sending.active = true
         sending.error = null
-        val post = NewPost(category.takeIf { categoryName != null }, title.trim(), body, signature.first())
+        val post = NewPost(category.takeIf { categoryName != null }, title.trim(), body, signature.first(), if (container.sentFrom.value) SENT_FROM else "")
         container.scope.launch {
             try {
                 session.post(board, post)
@@ -155,7 +155,8 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
                     minLines = 10,
                     modifier = Modifier.fillMaxWidth().testTag("post_body"),
                 )
-                Spacer(Modifier.height(16.dp))
+                CheckRow("文末加上「Sent from QuietPTT」", container.sentFrom.value, "post_sent_from", container.sentFrom::set)
+                Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onBack) { Text("取消") }
                     TextButton(onClick = { confirmOpen = true }, enabled = problem == null, modifier = Modifier.testTag("send_button")) {

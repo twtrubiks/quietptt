@@ -195,6 +195,15 @@ suspend fun writeEndToEnd() {
                 check(body.firstOrNull { it.isNotBlank() } == reply.body.lines().first()) { "內文的第一行不是打的那行：${body.take(3)}" }
                 check(reply.quote == quoted.isNotEmpty()) { "引言不對（要引用：${reply.quote}）：$quoted" }
                 if (reply.quote) check(body.any { it.startsWith(": ") && it.contains("第二行 $stamp") }) { "引言裡沒有原文：$quoted" }
+                if (reply.footer.isNotEmpty()) {
+                    val footer = reply.footer.lines()
+                    val trimmed = body.dropLastWhile { it.isBlank() }
+                    check(trimmed.takeLast(footer.size) == footer) { "文末不是加的那幾列：${body.takeLast(4)}" }
+                    // 文末前面剛好空一行，再上面是引言（或內文）
+                    val above = trimmed.dropLast(footer.size).takeLast(2)
+                    check(above.size == 2 && above[0].isNotBlank() && above[1].isBlank()) { "文末前面不是剛好空一行：${trimmed.takeLast(footer.size + 3)}" }
+                    if (reply.quote) check(above[0].startsWith(": ")) { "文末不在引言後面：${trimmed.takeLast(footer.size + 3)}" }
+                }
             }
             mine(replied.index!!)
             step("刪掉回文 #${replied.index}") { session.deleteArticle(board, replied.index!!) }?.let { list ->
@@ -202,7 +211,7 @@ suspend fun writeEndToEnd() {
                 if (gone == null || gone.deleted) replies -= replied.index!! else check(false) { "回文沒有刪掉" }
             }
         }
-        replyOnce("回文（採用原標題、引用原文）", PostReply("QuietPTT 回文測試 $stamp", title = null, quote = true)) {
+        replyOnce("回文（採用原標題、引用原文）", PostReply("QuietPTT 回文測試 $stamp", title = null, quote = true, footer = "-----\nSent from QuietPTT")) {
             it.startsWith("Re: ") && it.contains("自動測試 $stamp")
         }
         replyOnce("回文（新標題、不引用）", PostReply("QuietPTT 回文測試二 $stamp\n第二行", title = "Re: QuietPTT 回文新標題 $stamp", quote = false)) {

@@ -934,7 +934,7 @@ class Session(
         val titlePrompt = press(category + Keys.ENTER, form) { it is Page.PostForm && it.titleAsked }
         var page = press(clean(post.title).trim() + Keys.ENTER, titlePrompt) { it is Page.Editor || it is Page.PressAnyKey }
         if (page is Page.PressAnyKey) failPost(page)
-        page = typeBody(editorReady(page as Page.Editor), cleanBody(post.body))
+        page = typeBody(editorReady(page as Page.Editor), cleanBody(withFooter(post.body, post.footer)))
         page = press(Keys.ctrl('X'), page) { it is Page.SavePrompt }
         // 答了 s 之後 PTT 就存了：後面出錯也可能已經發出去，丟 PostUnconfirmedException，App 不給直接重試
         try {
@@ -1025,12 +1025,21 @@ class Session(
     private fun Page.isReplyStep(step: Page.ReplyForm.Step): Boolean = this is Page.ReplyForm && this.step == step
 
     /**
-     * 回文的編輯器裡打內文、存檔（[replyPost] 的後半）：插入模式、不自動縮排，打 [PostReply.body]（有引言的話後面空一行）→ Ctrl-X、s →
+     * 回文的編輯器裡打內文、存檔（[replyPost] 的後半）：插入模式、不自動縮排，打 [PostReply.body]（有引言的話後面空一行）→
+     * [PostReply.footer]（沒引言就接在內文後面；有引言就 Ctrl-T 到檔案最後一行、Ctrl-E 到行尾，Enter 一下再打）→ Ctrl-X、s →
      * 引言太多（[Page.QuoteRatioPrompt]）就 e 回編輯器、放棄、把原因丟出來 → 其他的提示照 [afterSave] 答完，回到列表。
      */
     private suspend fun finishReply(editor: Page.Editor, reply: PostReply): Page.ArticleList {
-        val body = cleanBody(reply.body)
-        var page: Page = typeBody(editorReady(editor), if (reply.quote && body.isNotEmpty()) body + Keys.ENTER + Keys.ENTER else body)
+        var page: Page = if (reply.quote) {
+            val body = cleanBody(reply.body)
+            val typed = typeBody(editorReady(editor), if (body.isNotEmpty()) body + Keys.ENTER + Keys.ENTER else body)
+            val footer = cleanBody(reply.footer)
+            // 引言在游標下面：到檔案最後一行的行尾（Ctrl-T、Ctrl-E）。引言每一列都帶換行（`do_quote`），
+            // 最後一行本來就是空的，Enter 一下就空出一行
+            if (footer.isEmpty()) typed else typeBody(typed, Keys.ctrl('T') + Keys.ctrl('E') + Keys.ENTER + footer)
+        } else {
+            typeBody(editorReady(editor), cleanBody(withFooter(reply.body, reply.footer)))
+        }
         page = press(Keys.ctrl('X'), page) { it is Page.SavePrompt }
         // 答了 s 之後 PTT 就可能存了：後面出錯丟 PostUnconfirmedException，App 不給直接重試
         try {
@@ -1396,6 +1405,13 @@ class Session(
 
     /** 多行的內文換成編輯器的按鍵：每一列拿掉控制字元（[clean]），列之間按 Enter。 */
     private fun cleanBody(body: String): String = body.lines().joinToString(Keys.ENTER) { clean(it) }
+
+    /** 內文後面空一行接 [footer]（空的就不加；內文是空的就只有 [footer]）。 */
+    private fun withFooter(body: String, footer: String): String = when {
+        footer.isEmpty() -> body
+        body.isBlank() -> footer
+        else -> body.trimEnd() + "\n\n" + footer
+    }
 
     /** 編輯器裡放棄：Ctrl-X、a（「文章 沒有 存入」），等回到列表。 */
     private suspend fun abortEditor(editor: Page.Editor) {
