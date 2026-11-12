@@ -39,9 +39,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +52,13 @@ import com.twtrubiks.quietptt.core.ptt.Session
 import com.twtrubiks.quietptt.core.ptt.UnexpectedScreenException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+/**
+ * 對話框（`AlertDialog`、`ModalBottomSheet`）是另一個視窗，吃不到 root 開的 `testTagsAsResourceId`，
+ * UiAutomator 的 `res("tag")` 找不到裡面的元件：裡面有測試要按的東西時，對話框的 modifier 加這個。
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+val DialogTestTags: Modifier = Modifier.semantics { testTagsAsResourceId = true }
 
 /** 每一頁上面那條：標題（[subtitle] 是標題下面一行小字，例如用哪個帳號發文）、返回鍵（有的話）、右邊的動作。 */
 @OptIn(ExperimentalMaterial3Api::class)

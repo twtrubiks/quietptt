@@ -125,6 +125,7 @@ Windows 用 `gradlew.bat` 與 `tools\capture\build\install\capture\bin\capture.b
 - `DemoRecordingTest`：展示流程，用 UiAutomator 操作（真實時間、動畫會播）。不要用 Compose test rule、不要用 `ActivityScenario`，
   找元件用 `UiTest.waitFor` 每 0.1 秒輪詢。元件找到之後畫面又重組了，按之前要重新找一次。
   用 `By.text(...)`，要用 testTag 時用 `res("tag")`（root 已開 `testTagsAsResourceId`）。
+  對話框（`AlertDialog`、`ModalBottomSheet`）是另一個視窗，吃不到 root 那個設定：裡面的元件要用 `res(...)` 找，對話框的 `modifier` 加 `DialogTestTags`（設定頁的對話框都加了）。
   每個操作之間停 1～1.5 秒；全長控制在 150 秒內（`screenrecord` 上限 180 秒）
 - release 冒煙測試沒有測試 APK，靠 `uiautomator dump` 找 `login_button`
 
