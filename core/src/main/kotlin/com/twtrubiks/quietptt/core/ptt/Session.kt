@@ -313,6 +313,23 @@ class Session(
     }
 
     /**
+     * 把我的最愛裡的看板 [board] 整個板設成已讀（[read]）或未讀（pttbbs `board_cmd_mark_read`）：游標移過去，按小寫 `v` 已讀、大寫 `V` 未讀。
+     * PTT 把這個板的閱讀紀錄整份換掉（`brc_toggle_all_read`：已讀是現在以前的文章都算讀過、未讀是全部算沒讀過，文章列表的「+」跟著變），
+     * 重畫列表、板名前的「ˇ」拿掉或加上，沒有確認、沒有訊息。PTT 上已經是那個樣子就不按鍵（畫面不會變，會等到逾時）。
+     * 回傳重讀的整份我的最愛。
+     */
+    suspend fun markFavoriteRead(board: Board, read: Boolean): List<Board> = navigate {
+        require(!board.isFolder) { "目錄沒有已讀、未讀" }
+        val index = board.index
+        val list = favoriteCursorAt(board)
+        if (list.boards.any { it.index == index && it.unread != read }) return@navigate readFavorites(list)
+        val after = press(if (read) "v" else "V", list) { page ->
+            page is Page.Favorites && page.boards.any { it.index == index && it.unread != read }
+        } as Page.Favorites
+        readFavorites(after)
+    }
+
+    /**
      * 走到我的最愛、把游標停在 [board] 的序號上（打序號 Enter，pttbbs `psb_cmd_num`）；已經在上面就不按鍵。
      * 停好之後確認那一列還是 [board]：App 列的可能是舊的（還沒更新完、在終端或別的地方改過），序號對到的是別的板，
      * 照按就刪錯、搬錯，而且事後看不出來。對不上就丟例外，什麼都不按。

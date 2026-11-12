@@ -188,7 +188,8 @@ private fun AccountTitle(account: String, onClick: () -> Unit) {
  * 我的最愛。一進來就叫 [Session.allFavorites]（從看板回來會按左鍵退出來）：超過一頁的話 PTT 那邊一頁一頁翻完，列出整份。
  * 列出來的存在 rememberSaveable 裡（跟著 [account]）：從看板回來先列上次的，翻完再換成最新的；更新失敗時上次的照樣列著，最上面一列說原因與「重試」。
  * 長按一列：移到最上面／往上一格／往下一格／移到最下面（[Session.moveFavorite]，新位置是鄰居的序號）、從我的最愛移除
- * （先問一次，[Session.removeFavorite]）；做完用 PTT 重讀的整份換掉列表，失敗 toast 說原因。
+ * （先問一次，[Session.removeFavorite]）；看板還有「設為已讀」（有新文章的）或「設為未讀」（[Session.markFavoriteRead]，整個板）；
+ * 做完用 PTT 重讀的整份換掉列表，失敗 toast 說原因。
  * 目錄（資料夾）不做：列成「目錄」、點不進去。
  */
 @Composable
@@ -235,7 +236,13 @@ private fun FavoritesTab(session: Session, account: String, active: Boolean, onO
             val busy = editing.active
             val first = list.firstOrNull()
             val last = list.lastOrNull()
-            listOf(
+            val mark = when {
+                board.isFolder -> null
+                board.unread -> MenuItem("設為已讀", "fav_mark_read", enabled = !busy) { edit { markFavoriteRead(board, read = true) } }
+                else -> MenuItem("設為未讀", "fav_mark_unread", enabled = !busy) { edit { markFavoriteRead(board, read = false) } }
+            }
+            listOfNotNull(
+                mark,
                 MenuItem("移到最上面", "fav_top", enabled = !busy && first != null && first != board) { edit { moveFavorite(board, first!!.index) } },
                 MenuItem("往上一格", "fav_up", enabled = !busy && at > 0) { edit { moveFavorite(board, list[at - 1].index) } },
                 MenuItem("往下一格", "fav_down", enabled = !busy && at in 0 until list.lastIndex) { edit { moveFavorite(board, list[at + 1].index) } },

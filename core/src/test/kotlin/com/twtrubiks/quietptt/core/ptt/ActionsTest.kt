@@ -134,6 +134,34 @@ class ActionsTest {
     }
 
     @Test
+    fun markFavoriteReadMovesTheCursorAndPressesLowercaseV() = runBlocking {
+        val ptt = bbs(FAVORITES)
+        val session = connect(ptt)
+        val boards = withTimeout(TEST_TIMEOUT_MS) { session.markFavoriteRead(Board(2, "MobileComm", "資訊", "", unread = true), read = true) }
+        assertEquals(listOf("2\r", "v"), ptt.received)
+        assertEquals(listOf(true, false, true, true), boards.map { it.unread })
+    }
+
+    @Test
+    fun markFavoriteUnreadPressesUppercaseV() = runBlocking {
+        val ptt = bbs(FAVORITES_2_READ)
+        val session = connect(ptt)
+        val boards = withTimeout(TEST_TIMEOUT_MS) { session.markFavoriteRead(Board(2, "MobileComm", "資訊", ""), read = false) }
+        assertEquals(listOf("V"), ptt.received)
+        assertEquals(listOf(true, true, true, true), boards.map { it.unread })
+    }
+
+    @Test
+    fun markFavoriteReadPressesNothingWhenPttAlreadyAgrees() = runBlocking {
+        // App 列的是舊的（還有藍點），PTT 上已經沒有「ˇ」：再按 v 畫面不會變
+        val ptt = bbs(FAVORITES_2_READ)
+        val session = connect(ptt)
+        val boards = withTimeout(TEST_TIMEOUT_MS) { session.markFavoriteRead(Board(2, "MobileComm", "資訊", "", unread = true), read = true) }
+        assertEquals(emptyList<String>(), ptt.received)
+        assertEquals(listOf(true, false, true, true), boards.map { it.unread })
+    }
+
+    @Test
     fun moveFavoriteAnswersTheNewPosition() = runBlocking {
         val ptt = bbs(FAVORITES)
         val session = connect(ptt)
@@ -607,6 +635,8 @@ class ActionsTest {
                 at == FAVORITES && input == "y" -> ALL_BOARDS
                 // 刪除、移動（pttbbs `fav_cmd_toggle_or_del`、`imovefav`，照原始碼排的）
                 at == FAVORITES && input == "2\r" -> FAVORITES_CURSOR_2
+                at == FAVORITES_CURSOR_2 && input == "v" -> FAVORITES_2_READ
+                at == FAVORITES_2_READ && input == "V" -> FAVORITES_CURSOR_2
                 at == FAVORITES_CURSOR_2 && input == "d" -> DELETE_FAVORITE_CONFIRM
                 at == DELETE_FAVORITE_CONFIRM && input == "y\r" -> FAVORITES_WITHOUT_2
                 at == DELETE_FAVORITE_CONFIRM && input.endsWith("\r") -> FAVORITES_CURSOR_2
@@ -732,6 +762,8 @@ class ActionsTest {
         val FAVORITES_CURSOR_2: String = FAVORITES.lines().let { rows ->
             replaceRow(replaceRow(FAVORITES, 3, " " + rows[3].drop(1)), 4, ">" + rows[4].drop(1))
         }
+        // 游標在第 2 筆、按了 v：那一列板名前的「ˇ」變成兩格空白
+        val FAVORITES_2_READ: String = replaceRow(FAVORITES_CURSOR_2, 4, FAVORITES_CURSOR_2.lines()[4].replaceFirst("ˇ", "  "))
         val DELETE_FAVORITE_CONFIRM = replaceRow(FAVORITES_CURSOR_2, 23, "你確定刪除嗎? [N/y]")
         // 刪掉第 2 筆：後面的往上補、序號重排，游標留在第 4 列
         val FAVORITES_WITHOUT_2: String = FAVORITES.lines().let { rows ->
