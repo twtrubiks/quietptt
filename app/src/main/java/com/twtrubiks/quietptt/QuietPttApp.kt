@@ -233,7 +233,7 @@ fun QuietPttApp() {
     val state by container.connection.state.collectAsState()
     var stack by rememberSaveable(stateSaver = StackSaver) { mutableStateOf(listOf<Route>(Route.Favorites)) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
-    // 首頁帳號選單的「切換帳號」：登出之後登入頁直接開帳號列表；下一次登入好了（換了連線）就清掉
+    // 首頁「我」那頁的「切換帳號」：登出之後登入頁直接開帳號列表；下一次登入好了（換了連線）就清掉
     var switching by rememberSaveable { mutableStateOf(false) }
     // stack 是哪一條連線的。手動重新登入（新的 Session）就從我的最愛開始；轉螢幕是同一條連線，stack 留著；
     // 背景斷線後的自動重登（Online.resumed）stack 也留著：每一頁進來會叫 Session 從現在的畫面走過去，所以回得到剛剛的看板或文章

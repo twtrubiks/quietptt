@@ -67,7 +67,7 @@ private enum class LoginStep { LAST, LIST, FORM }
  *   點了登入，右邊垃圾桶忘掉那一組（先問）。
  * - [LoginStep.FORM]：帳號、密碼（眼睛可以顯示）、「記住帳號與密碼」、登入；有記住的帳號時下面「使用其他帳號」回列表。
  *
- * 首頁帳號選單的「切換帳號」登出過來的（[startAtList]）直接從 LIST 開始。
+ * 首頁「我」那頁的「切換帳號」登出過來的（[startAtList]）直接從 LIST 開始。
  * 沒記任何帳號就只有 FORM、沒有 ✕。只記帳號沒記密碼的卡片點了到 FORM，帳號填好、打密碼。從卡片登入但密碼不對
  * （[ConnectionState.Offline.badPassword]，例如在別的地方改過密碼）也換到 FORM 重打。左上的 ✕ 與系統返回鍵回上一層。
  * 連線中、登入中顯示進度、什麼都不能按；失敗的原因在 [ConnectionState.Offline.reason]，有當時的畫面（[ConnectionState.Offline.screen]）就給「看當時的畫面」。

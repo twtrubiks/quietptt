@@ -12,11 +12,12 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
 ### 已經做了
 
 - 登入：多帳號（記好幾組、登入頁挑；一次只連一條）、記住帳號與密碼、自動登入、重複登入照設定刪不刪其他連線、失敗可看當時的畫面
-- 首頁四個分頁（點分頁或左右滑）；標題是登入的帳號，點了查詢我的資料、切換帳號、登出：
+- 首頁五個分頁（最下面一排，點分頁或左右滑）：
   - 我的最愛：整份列出（超過一頁也列）、有新文章的板名後面一個藍點、右邊是人氣（爆／HOT／人數，照 PTT 的顏色）、長按設為已讀／未讀、改位置／移除
   - 分組討論：分類、子分類、分類裡的看板
   - 即時熱門：長按加入我的最愛
-  - 私人信件：列信、讀信、寫信、回信；有新信時分頁名稱右上角一個藍點、跳「你有新信件」（看 PTT 的標題列，不另外查）
+  - 私人信件：列信、讀信、寫信、回信；有新信時分頁圖示右上角一個藍點、跳「你有新信件」（看 PTT 的標題列，不另外查）
+  - 我：我的資料（查詢自己）、設定、終端畫面、切換帳號、登出
 - 看板：標題列右邊是板裡現在的人數；置底文、新的在上、往下捲載入更早的、往下拉重整；工具列發文（內文先帶入設定的預設內文；沒送就離開可保留草稿、下次進同一個板問要不要恢復；文末可加「Sent from QuietPTT」，預設勾；回文也是）、搜尋（標題／作者／推文數，有搜尋紀錄）、重整；
   長按一篇：查詢作者、文章資訊、同作者／同標題文章、複製全文，自己的文章可編輯、改標題、刪除
 - 文章：排版照 BePTT（本文照 PTT 的 ANSI 色、簽名檔縮小、網址可點、圖片按「開啟圖片」才載）；
@@ -50,7 +51,7 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
 
 ```
 app（Android、Compose）
-  LoginScreen / HomeScreen（我的最愛、分組討論、即時熱門、私人信件）/ ClassBoardsScreen / BoardScreen / ArticleScreen / ReplyPostScreen / MailScreen / WriteMailScreen / TerminalScreen / SettingsScreen
+  LoginScreen / HomeScreen（我的最愛、分組討論、即時熱門、私人信件、我）/ ClassBoardsScreen / BoardScreen / ArticleScreen / ReplyPostScreen / MailScreen / WriteMailScreen / TerminalScreen / SettingsScreen
   QuietPttApp（Route ＋ stack）  Connection（前景才連線、重連）  Credentials（KeyStore）  AppContainer
       │ 只透過 Session 與 Page
 core（純 Kotlin，沒有 Android）

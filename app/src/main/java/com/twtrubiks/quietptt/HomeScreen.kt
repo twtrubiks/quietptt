@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
@@ -13,29 +14,38 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -63,29 +74,38 @@ import com.twtrubiks.quietptt.core.ptt.Board
 import com.twtrubiks.quietptt.core.ptt.MailSummary
 import com.twtrubiks.quietptt.core.ptt.Popularity
 import com.twtrubiks.quietptt.core.ptt.Session
+import com.twtrubiks.quietptt.core.ptt.UserInfo
 import kotlinx.coroutines.launch
 
-/** 首頁的四個分頁（照 BePTT 首頁的順序：我的最愛、分組討論、即時熱門、私人信件）。 */
-enum class HomeTab(val label: String) { FAVORITES("我的最愛"), CLASSES("分組討論"), HOT("即時熱門"), MAIL("私人信件") }
+/**
+ * 首頁的五個分頁：[label] 是標題列寫的全名，[short] 是最下面那排寫的兩個字，[icon] 是那排的圖示。
+ * 前四個照 BePTT 首頁的順序，最後一個「我」照 PttX。
+ */
+enum class HomeTab(val label: String, val short: String, val icon: ImageVector) {
+    FAVORITES("我的最愛", "最愛", Icons.Filled.Favorite),
+    CLASSES("分組討論", "分類", Icons.Filled.Menu),
+    HOT("即時熱門", "熱門", Icons.Filled.Star),
+    MAIL("私人信件", "信件", Icons.Filled.Email),
+    ME("我", "我", Icons.Filled.Person),
+}
 
 /**
- * 登入後的首頁：上面一排分頁（[HomeTab]），點分頁或在下面左右滑都能切（[HorizontalPager]）。
+ * 登入後的首頁：最下面一排分頁（[HomeTab]，圖示與兩個字），點分頁或在中間左右滑都能切（[HorizontalPager]）。
  * 只有**停下來的那頁**會叫 Session 走過去（切到哪頁 PTT 就走到哪裡）：滑到一半、點分頁時動畫經過的頁只畫上次列的，不按鍵。
  * 每頁列過的東西留著（pager 收掉的頁也存著 saved state），切回來先列上次的、走到了再換新的。
- * 分頁選到哪個留在 pager 的 saved state（轉螢幕、從看板回來都還在那頁）。右上角「搜尋」進搜尋看板頁、「終端」、「設定」。
- * 標題是登入的帳號（[AccountTitle]，分頁列已經寫了是哪一頁），點了跳出帳號選單：查詢我的資料（[UserInfoDialog] 查自己）、
- * 切換帳號（[onSwitchAccount]：登出、登入頁直接到帳號列表）、登出（[onLogout]）。
+ * 分頁選到哪個留在 pager 的 saved state（轉螢幕、從看板回來都還在那頁）。
+ * 標題是現在那頁的名字（「我」那頁是登入的帳號），右上角只有「搜尋」進搜尋看板頁；終端、設定、切換帳號、登出都在「我」那頁。
  *
  * - 我的最愛：[FavoritesTab]（[Session.allFavorites]）
  * - 分組討論：[ClassesTab]（[Session.showClasses]，最後一項「即時熱門看板」不列，它有自己的分頁），點一個分類進 [ClassBoardsScreen]
  * - 即時熱門：[HotTab]（[Session.hotBoards]：【分類看板】最後一項進去，人氣排名），長按一列加入我的最愛
  * - 私人信件：[MailTab]（[Session.showMails]，最新的在上），點一封進 [MailScreen]；右下角「寫信」進 [WriteMailScreen]。
- *   PTT 說有新信（[Session.newMail]）時分頁名稱右上角一個藍點（[MailTabLabel]）
+ *   PTT 說有新信（[Session.newMail]）時分頁圖示右上角一個藍點（[MailTabIcon]）
+ * - 我：[MeTab]（[Session.queryUser] 查自己）
  *
  * 「你有新信件」的「看信」（[openMailTab]）：切到私人信件分頁，切好叫 [onMailTabOpened]；切好之前每一頁都不叫 Session 走過去
  * （從看板回來時 pager 停在上次那頁，不先走到那頁再走到信箱）。停下來的是哪一頁告訴 [onTabSettled]（停在私人信件就不跳提醒）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     session: Session,
@@ -113,45 +133,17 @@ fun HomeScreen(
         }
     }
     LaunchedEffect(pager.settledPage) { onTabSettled(HomeTab.entries[pager.settledPage]) }
-    // 分頁底線跟著手指（滑過一半就換）；叫 Session 走過去只看 settledPage
+    // 選到哪個分頁跟著手指（滑過一半就換）；叫 Session 走過去只看 settledPage
     val shown = pager.currentPage
-    var accountMenu by remember { mutableStateOf(false) }
-    var queryingSelf by remember { mutableStateOf(false) }
-    if (accountMenu) {
-        ActionSheet(
-            account,
-            listOf(
-                MenuItem("查詢我的資料", "query_self", onClick = { queryingSelf = true }),
-                MenuItem("切換帳號", "switch_account", onClick = onSwitchAccount),
-                MenuItem("登出", "account_logout", onClick = onLogout),
-            ),
-            onDismiss = { accountMenu = false },
-        )
-    }
-    if (queryingSelf) UserInfoDialog(session, account, onDismiss = { queryingSelf = false })
+    val shownTab = HomeTab.entries[shown]
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { AccountTitle(account, onClick = { accountMenu = true }) },
-            actions = {
-                TextIconButton("搜尋", onClick = onSearchBoards, modifier = Modifier.testTag("board_search_button"), icon = Icons.Filled.Search)
-                TerminalButton(onTerminal)
-                TextIconButton("設定", onClick = onSettings, modifier = Modifier.testTag("settings_button"), icon = Icons.Filled.Settings)
-            },
-        )
-        PrimaryTabRow(selectedTabIndex = shown) {
-            HomeTab.entries.forEachIndexed { i, t ->
-                Tab(
-                    selected = i == shown,
-                    onClick = { scope.launch { pager.animateScrollToPage(i) } },
-                    text = { if (t == HomeTab.MAIL) MailTabLabel(t.label, newMail == true) else Text(t.label) },
-                    modifier = Modifier.testTag("tab_${t.name.lowercase()}"),
-                )
-            }
+        AppBar(if (shownTab == HomeTab.ME) account else shownTab.label) {
+            TextIconButton("搜尋", onClick = onSearchBoards, modifier = Modifier.testTag("board_search_button"), icon = Icons.Filled.Search)
         }
         HorizontalPager(
             state = pager,
             key = { HomeTab.entries[it].name },
-            modifier = Modifier.fillMaxSize().testTag("home_pager"),
+            modifier = Modifier.fillMaxWidth().weight(1f).testTag("home_pager"),
         ) { i ->
             // 滑動中、動畫經過的頁不按鍵（不然 PTT 會被拉去旁邊那頁，放手彈回來時兩邊對不上）
             val active = i == pager.settledPage && !openMailTab
@@ -160,27 +152,121 @@ fun HomeScreen(
                 HomeTab.CLASSES -> ClassesTab(session, active, onOpenClass, onTerminal)
                 HomeTab.HOT -> HotTab(session, active, onOpenBoard, onTerminal)
                 HomeTab.MAIL -> MailTab(session, active, onOpenMail, onWriteMail, onTerminal)
+                HomeTab.ME -> MeTab(session, account, active, onSettings, onTerminal, onSwitchAccount, onLogout)
+            }
+        }
+        NavigationBar {
+            HomeTab.entries.forEachIndexed { i, t ->
+                NavigationBarItem(
+                    selected = i == shown,
+                    onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                    icon = { if (t == HomeTab.MAIL) MailTabIcon(t.icon, newMail == true) else Icon(t.icon, contentDescription = null) },
+                    label = { Text(t.short) },
+                    modifier = Modifier.testTag("tab_${t.name.lowercase()}"),
+                )
             }
         }
     }
 }
 
-/** 首頁的標題：代號第一個字的圓形頭像、代號、「▾」，整列點了開帳號選單。代號太長（最多 12 個字）加「…」。 */
+/**
+ * 「我」：上面是代號（第一個字的圓形頭像）與 PTT 給的資料，下面兩欄的格子：設定、終端畫面、切換帳號（[onSwitchAccount]：登出、登入頁直接到帳號列表）、登出。
+ * 資料是 [Session.queryUser] 查自己（PTT 會走到主選單）：第一次停在這頁時查一次，查到的留著（存在 saved state，跟著 [account]），
+ * 之後停在這頁不再查；代號右邊的「重新整理」再查一次。查的時候轉圈，查不到說原因與「重試」；格子不用等 PTT，一直都在。
+ */
 @Composable
-private fun AccountTitle(account: String, onClick: () -> Unit) {
+private fun MeTab(
+    session: Session,
+    account: String,
+    active: Boolean,
+    onSettings: () -> Unit,
+    onTerminal: () -> Unit,
+    onSwitchAccount: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    var info by rememberSaveable(account, stateSaver = UserInfoSaver) { mutableStateOf<UserInfo?>(null) }
+    val navigation = rememberNavigation(session, "me", enabled = active && info == null) {
+        info = queryUser(account) ?: throw IllegalStateException("PTT 查不到 $account 的資料")
+    }
+    val found = info
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("me_tab")) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).clearAndSetSemantics {},
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(account.take(1).uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(account, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("me_account"))
+                found?.nickname?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (found != null) {
+                TextIconButton(
+                    "重新整理",
+                    onClick = {
+                        info = null
+                        navigation.retry()
+                    },
+                    modifier = Modifier.testTag("me_refresh"),
+                    icon = Icons.Filled.Refresh,
+                )
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val error = navigation.error
+            when {
+                found != null -> for ((label, value) in found.fields) {
+                    Row {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(88.dp),
+                        )
+                        Text(value, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                error != null -> {
+                    Text("查不到我的資料：${error.lineSequence().first()}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = navigation::retry) { Text("重試") }
+                }
+                else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("正在查詢我的資料…", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 12.dp))
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MeTile("設定", Icons.Filled.Settings, "settings_button", onSettings, Modifier.weight(1f))
+                MeTile("終端畫面", AppIcons.Terminal, "terminal_button", onTerminal, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MeTile("切換帳號", Icons.Filled.Refresh, "switch_account", onSwitchAccount, Modifier.weight(1f))
+                MeTile("登出", Icons.Filled.ExitToApp, "account_logout", onLogout, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** 「我」那頁的一格：圖示與字，整格可以點。 */
+@Composable
+private fun MeTile(label: String, icon: ImageVector, tag: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        Modifier.clip(MaterialTheme.shapes.medium).clickable(onClickLabel = "帳號選單", onClick = onClick)
-            .padding(4.dp).testTag("account_button"),
+        modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 18.dp)
+            .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(32.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).clearAndSetSemantics {},
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(account.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
-        Text(account, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).weight(1f, fill = false))
-        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+        Icon(icon, contentDescription = null)
+        Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
@@ -432,18 +518,15 @@ private fun NameWithUnreadDot(name: String, unread: Boolean) {
     }
 }
 
-/**
- * 「私人信件」分頁的名稱；有新信時右上角一個藍點（[UnreadBlue]），TalkBack 唸「有新信件」。
- * 點疊在字的右上角、不佔寬度（Material 的 [BadgedBox]）：分頁平分螢幕寬，點放在字後面會把「私人信件」擠成兩行。
- */
+/** 「私人信件」分頁的圖示；有新信時右上角一個藍點（[UnreadBlue]），TalkBack 唸「有新信件」。 */
 @Composable
-private fun MailTabLabel(label: String, newMail: Boolean) {
+private fun MailTabIcon(icon: ImageVector, newMail: Boolean) {
     BadgedBox(
         badge = {
             if (newMail) Badge(containerColor = UnreadBlue, modifier = Modifier.semantics { contentDescription = "有新信件" })
         },
     ) {
-        Text(label)
+        Icon(icon, contentDescription = null)
     }
 }
 
@@ -504,5 +587,32 @@ private val MailsSaver = Saver<List<MailSummary>?, ArrayList<String>>(
             val f = line.split("\t", limit = 5)
             MailSummary(f[0].toInt(), f[1].firstOrNull() ?: ' ', f[2], f[3], f[4])
         }
+    },
+)
+
+/** [UserInfo] 存進 saved state：代號、暱稱、幾個欄位，接著每個欄位的標籤與值，最後是名片檔的每一列。 */
+private val UserInfoSaver = Saver<UserInfo?, ArrayList<String>>(
+    save = { info ->
+        info?.let {
+            ArrayList<String>().apply {
+                add(it.id)
+                add(it.nickname.orEmpty())
+                add(it.fields.size.toString())
+                for ((label, value) in it.fields) {
+                    add(label)
+                    add(value)
+                }
+                addAll(it.plan)
+            }
+        }
+    },
+    restore = { saved ->
+        val count = saved[2].toInt()
+        UserInfo(
+            id = saved[0],
+            nickname = saved[1].takeIf { it.isNotEmpty() },
+            fields = (0 until count).map { saved[3 + it * 2] to saved[4 + it * 2] },
+            plan = saved.drop(3 + count * 2),
+        )
     },
 )
