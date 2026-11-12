@@ -58,3 +58,12 @@ VM 經 proxy 從國外連，間隔跟手機上不一樣，只能當參考。下�
 
 Compose 官方建議的啟動、捲動加速。從 GitHub 裝的 APK 要加 `profileinstaller` 才生效，它預設帶一個 ContentProvider（`CleanManifestTest` 擋）；
 App 用幾次之後系統也會自己最佳化，目前不划算。
+
+## 三星鍵盤的剪貼簿（看過，現在不做）
+
+用三星鍵盤時，App 裡每個輸入框都打不開鍵盤工具列的「剪貼簿」（按了沒反應）；長按貼上、複製都正常，換 Gboard 也正常。
+原因在 Compose 的輸入框本身：`OutlinedTextField`、`BasicTextField`＋`TextFieldState` 都打不開，包在 `AndroidView` 裡的原生 `EditText` 打得開，沒有鍵盤選項可以調。
+
+要修只能把輸入框換成原生 `EditText`（先換打長文字的：發文、推文、回文、寫信的內文、編輯文章、預設內文）。代價是外框與深淺色要自己包、
+文字狀態要自己同步（注音選字到一半不能被打斷）、鍵盤彈出時的捲動與模擬器測試找輸入框的方式都要重做，而且只能靠實機來回驗證。
+換來的只有剪貼簿的歷史清單，目前不划算。
