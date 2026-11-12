@@ -2,7 +2,7 @@ package com.twtrubiks.quietptt
 
 import android.content.SharedPreferences
 
-/** 記憶體裡的假 SharedPreferences，只做 [Credentials]、[SearchHistory] 用得到的：字串、Long、contains、edit（後寫的算、clear 先做）。 */
+/** 記憶體裡的假 SharedPreferences，只做 [Credentials]、[SearchHistory]、[PostDrafts] 用得到的：字串、Long、contains、edit（後寫的算、clear 先做）。 */
 internal class MemoryPrefs : SharedPreferences {
     private val map = HashMap<String, Any?>()
 

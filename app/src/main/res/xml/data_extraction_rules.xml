@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- allowBackup 已經是 false（雲端備份不會做）；Android 12 以上換手機的直接傳輸另外看這份：帳號、搜尋紀錄那兩份 SharedPreferences 不傳 -->
+<!-- allowBackup 已經是 false（雲端備份不會做）；Android 12 以上換手機的直接傳輸另外看這份：帳號、搜尋紀錄、發文草稿那三份 SharedPreferences 不傳 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="account.xml" />
         <exclude domain="sharedpref" path="search_history.xml" />
+        <exclude domain="sharedpref" path="drafts.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="account.xml" />
         <exclude domain="sharedpref" path="search_history.xml" />
+        <exclude domain="sharedpref" path="drafts.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -332,11 +332,12 @@ fun QuietPttApp() {
                                 if (result == SnackbarResult.ActionPerformed) openMail()
                             }
                         }
+                        val backGuard = LocalBackGuard.current
                         // 橫著滑回上一頁（BePTT 的滑動退出）：首頁沒得退；終端畫面自己要橫向捲，不包
                         SwipeBackBox(
                             mode = container.swipeBack.value,
                             enabled = stack.size > 1 && route != Route.Terminal,
-                            onBack = ::pop,
+                            onBack = { backGuard.value?.invoke() ?: pop() },
                         ) {
                             holder.SaveableStateProvider(route.key) {
                                 OnlineScreens(

@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -67,7 +69,11 @@ fun ReplyPostScreen(
     val container = context.container
     val defaultTitle = remember(title) { replyTitle(title) }
     var newTitle by rememberSaveable { mutableStateOf(defaultTitle) }
-    var body by rememberSaveable { mutableStateOf("") }
+    // 先帶入設定的「預設內文」，游標在最後面
+    var bodyField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(container.bodyTemplate.value.let { TextFieldValue(it, TextRange(it.length)) })
+    }
+    val body = bodyField.text
     var signature by rememberSaveable { mutableStateOf("0") }
     var quote by rememberSaveable { mutableStateOf(true) }
     var signatureOpen by rememberSaveable { mutableStateOf(false) }
@@ -151,8 +157,8 @@ fun ReplyPostScreen(
             }
             CheckRow("引用原文", quote, "reply_quote") { quote = it }
             OutlinedTextField(
-                value = body,
-                onValueChange = { body = it },
+                value = bodyField,
+                onValueChange = { bodyField = it },
                 label = { Text("內文") },
                 supportingText = { if (quote) Text("原文會引用在內文下面；PTT 規定引言不能超過八成") },
                 minLines = 10,

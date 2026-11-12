@@ -15,6 +15,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -130,6 +131,16 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
                 Text("文末加上「Sent from QuietPTT」", modifier = Modifier.padding(start = 8.dp))
             }
             Text("發文、回文時在內文最後面加兩列「-----」「Sent from QuietPTT」（不寫手機型號）；發文頁、回文頁也能勾", style = MaterialTheme.typography.bodySmall)
+
+            OutlinedTextField(
+                value = container.bodyTemplate.value,
+                onValueChange = container.bodyTemplate::set,
+                label = { Text("預設內文") },
+                minLines = 3,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("body_template"),
+            )
+            Text("發文、回文時先幫你打在內文欄位裡，送出前可以改；留空就不帶。只存在這支手機", style = MaterialTheme.typography.bodySmall)
 
             Button(
                 onClick = { container.searchHistory.clearAll() },

@@ -56,11 +56,17 @@ class AppContainer(context: Context) {
     /** 發文、回文的文末加上 [SENT_FROM]（預設開）：發文頁、回文頁的勾選框與設定頁的開關是同一個。 */
     val sentFrom = BoolSetting(settings, "sent_from", true)
 
+    /** 發文頁、回文頁打開時先帶進內文欄位的字（設定頁打的；預設空的，不帶）。 */
+    val bodyTemplate = StringSetting(settings, "body_template")
+
     /** 帳號與加密過的密碼，另一份 SharedPreferences（不備份、不隨換機傳輸）。 */
     val credentials = Credentials(context.getSharedPreferences("account", Context.MODE_PRIVATE))
 
     /** 看板裡搜尋的紀錄（標題、作者、推文數各一份），另一份 SharedPreferences（不備份、不隨換機傳輸）。第一次開搜尋或設定才讀。 */
     val searchHistory by lazy { SearchHistory(context.getSharedPreferences("search_history", Context.MODE_PRIVATE)) }
+
+    /** 發文的草稿（一個看板一份），另一份 SharedPreferences（不備份、不隨換機傳輸）。第一次開發文頁才讀。 */
+    val drafts by lazy { PostDrafts(context.getSharedPreferences("drafts", Context.MODE_PRIVATE)) }
 
     /** 看板上次列過的文章，只在記憶體（再進同一個板先列這份，見 [BoardScreen]）。第一次進板才建。 */
     val boardLists by lazy { BoardLists() }

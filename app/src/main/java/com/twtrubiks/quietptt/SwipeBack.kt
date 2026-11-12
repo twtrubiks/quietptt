@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -48,6 +50,12 @@ fun swipeGoesBack(dragged: Float, width: Float, velocity: Float, mode: SwipeBack
     if (distance <= 0f) return false
     return distance >= width * SWIPE_BACK_FRACTION || velocity * sign >= flingVelocity
 }
+
+/**
+ * 最上面那一頁要攔「橫著滑回上一頁」時放的（發文頁打了字還沒送：先問要不要保留草稿）；null 就直接退。
+ * 整個 App 一個（預設值那一個），放的那一頁離開時自己清掉。
+ */
+val LocalBackGuard = staticCompositionLocalOf { mutableStateOf<(() -> Unit)?>(null) }
 
 /**
  * 包住一頁：照 [mode] 的方向橫著拖，頁面跟著手指移，放手時 [swipeGoesBack] 說要退就叫 [onBack]，不然彈回去。

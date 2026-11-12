@@ -23,6 +23,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -51,21 +54,32 @@ import kotlinx.coroutines.launch
  * 送出用 [Session.post]，走 App 的 scope（離開這一頁也要把 PTT 那邊的流程走完，不能留在編輯器裡），送的時候不給返回。
  * 發好了回看板（[onDone]），看板那一頁重新進來就會看到新文章。失敗顯示原因、「重試」、「切到終端畫面」。
  * 記了兩組以上帳號時，標題下面一行「以 代號 發文」（[signedAs]）。
+ *
+ * 草稿（[PostDrafts]，一個看板一份）：打了東西還沒送就要走，先問「要保留這份草稿嗎？」（取消／捨棄草稿／保留草稿）；
+ * 進來時這個板有草稿就問「是否要恢復暫存內容」（刪除暫存／好）。發出去了就刪掉。
  */
 @Composable
 fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: () -> Unit, onBack: () -> Unit, signedAs: String? = null) {
+    val container = LocalContext.current.container
     var options by remember(session, board) { mutableStateOf<PostOptions?>(null) }
     val navigation = rememberNavigation(session, "post-$board") { options = postOptions(board) }
     // -1 是「不選」
     var category by rememberSaveable(board) { mutableIntStateOf(-1) }
     var title by rememberSaveable(board) { mutableStateOf("") }
-    var body by rememberSaveable(board) { mutableStateOf("") }
+    // 先帶入設定的「預設內文」，游標在最後面
+    var bodyField by rememberSaveable(board, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(container.bodyTemplate.value.let { TextFieldValue(it, TextRange(it.length)) })
+    }
+    val body = bodyField.text
     var signature by rememberSaveable(board) { mutableStateOf("0") }
     var categoryOpen by rememberSaveable { mutableStateOf(false) }
     var signatureOpen by rememberSaveable { mutableStateOf(false) }
     var confirmOpen by rememberSaveable { mutableStateOf(false) }
+    // 這個板存著的草稿：進來問一次要不要恢復（問過就不再問，轉螢幕也是）
+    var draft by remember(board) { mutableStateOf(container.drafts.get(board)) }
+    var restoreAsked by rememberSaveable(board) { mutableStateOf(false) }
+    var leaveOpen by rememberSaveable { mutableStateOf(false) }
     val sending = remember(session, board) { Sending() }
-    val container = LocalContext.current.container
 
     val categories = options?.categories ?: emptyList()
     val categoryName = categories.getOrNull(category)
@@ -80,6 +94,7 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
         container.scope.launch {
             try {
                 session.post(board, post)
+                container.drafts.remove(board)
                 sending.done = true
             } catch (e: CancellationException) {
                 throw e
@@ -97,8 +112,20 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
     LaunchedEffect(sending.done) { if (sending.done) onDone() }
     BackHandler(enabled = sending.active) {}
 
+    // 打了東西還沒送就要走（返回鍵、左上角、「取消」、橫著滑）：先問要不要保留草稿
+    val guarded = !sending.active && !sending.done && worthKeeping(title, body, container.bodyTemplate.value)
+    fun leave() {
+        if (guarded) leaveOpen = true else onBack()
+    }
+    BackHandler(enabled = guarded) { leaveOpen = true }
+    val backGuard = LocalBackGuard.current
+    DisposableEffect(guarded) {
+        backGuard.value = if (guarded) ({ leaveOpen = true }) else null
+        onDispose { backGuard.value = null }
+    }
+
     Column(Modifier.fillMaxSize()) {
-        AppBar("發表文章", onBack = if (sending.active) null else onBack, subtitle = signedAs?.let { "以 $it 發文" }) {
+        AppBar("發表文章", onBack = if (sending.active) null else ::leave, subtitle = signedAs?.let { "以 $it 發文" }) {
             TerminalButton(onTerminal)
         }
         when {
@@ -149,8 +176,8 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = body,
-                    onValueChange = { body = it },
+                    value = bodyField,
+                    onValueChange = { bodyField = it },
                     label = { Text("內文") },
                     minLines = 10,
                     modifier = Modifier.fillMaxWidth().testTag("post_body"),
@@ -158,7 +185,7 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
                 CheckRow("文末加上「Sent from QuietPTT」", container.sentFrom.value, "post_sent_from", container.sentFrom::set)
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onBack) { Text("取消") }
+                    TextButton(onClick = ::leave) { Text("取消") }
                     TextButton(onClick = { confirmOpen = true }, enabled = problem == null, modifier = Modifier.testTag("send_button")) {
                         Text("發文")
                     }
@@ -167,6 +194,63 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
         }
     }
 
+    val saved = draft
+    if (saved != null && !restoreAsked && options != null && navigation.error == null && !sending.active && !sending.done) {
+        AlertDialog(
+            // 點外面、返回鍵：這次不載入，草稿留著
+            onDismissRequest = { restoreAsked = true },
+            title = { Text("恢復內容") },
+            text = { Text("是否要恢復暫存內容「${saved.preview}」？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        title = saved.title
+                        bodyField = TextFieldValue(saved.body, TextRange(saved.body.length))
+                        restoreAsked = true
+                    },
+                    modifier = Modifier.testTag("draft_restore"),
+                ) { Text("好") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        container.drafts.remove(board)
+                        draft = null
+                        restoreAsked = true
+                    },
+                    modifier = Modifier.testTag("draft_delete"),
+                ) { Text("刪除暫存") }
+            },
+        )
+    }
+    if (leaveOpen) {
+        AlertDialog(
+            onDismissRequest = { leaveOpen = false },
+            title = { Text("離開") },
+            text = { Text("要保留這份草稿嗎？下次打開時可以繼續編輯。") },
+            confirmButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            container.drafts.remove(board)
+                            leaveOpen = false
+                            onBack()
+                        },
+                        modifier = Modifier.testTag("draft_discard"),
+                    ) { Text("捨棄草稿") }
+                    TextButton(
+                        onClick = {
+                            container.drafts.save(board, PostDraft(title.trim(), body))
+                            leaveOpen = false
+                            onBack()
+                        },
+                        modifier = Modifier.testTag("draft_keep"),
+                    ) { Text("保留草稿") }
+                }
+            },
+            dismissButton = { TextButton(onClick = { leaveOpen = false }) { Text("取消") } },
+        )
+    }
     if (categoryOpen) {
         ChoiceDialog(
             title = "選擇分類",

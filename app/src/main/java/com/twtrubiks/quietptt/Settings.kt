@@ -46,6 +46,16 @@ class EnumSetting<E : Enum<E>>(private val prefs: SharedPreferences, private val
     }
 }
 
+class StringSetting(private val prefs: SharedPreferences, private val key: String, default: String = "") {
+    var value by mutableStateOf(prefs.getString(key, null) ?: default)
+        private set
+
+    fun set(value: String) {
+        this.value = value
+        prefs.edit { putString(key, value) }
+    }
+}
+
 class BoolSetting(private val prefs: SharedPreferences, private val key: String, default: Boolean) {
     var value by mutableStateOf(prefs.getBoolean(key, default))
         private set

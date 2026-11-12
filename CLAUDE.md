@@ -17,14 +17,14 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
   - 分組討論：分類、子分類、分類裡的看板
   - 即時熱門：長按加入我的最愛
   - 私人信件：列信、讀信、寫信、回信；有新信時分頁名稱右上角一個藍點、跳「你有新信件」（看 PTT 的標題列，不另外查）
-- 看板：標題列右邊是板裡現在的人數；置底文、新的在上、往下捲載入更早的、往下拉重整；工具列發文（文末可加「Sent from QuietPTT」，預設勾；回文也是）、搜尋（標題／作者／推文數，有搜尋紀錄）、重整；
+- 看板：標題列右邊是板裡現在的人數；置底文、新的在上、往下捲載入更早的、往下拉重整；工具列發文（內文先帶入設定的預設內文；沒送就離開可保留草稿、下次進同一個板問要不要恢復；文末可加「Sent from QuietPTT」，預設勾；回文也是）、搜尋（標題／作者／推文數，有搜尋紀錄）、重整；
   長按一篇：查詢作者、文章資訊、同作者／同標題文章、複製全文，自己的文章可編輯、改標題、刪除
 - 文章：排版照 BePTT（本文照 PTT 的 ANSI 色、簽名檔縮小、網址可點、圖片按「開啟圖片」才載）；
   推文有色條、樓層、連推疊一組、標原PO，點一則突顯同一個人的推文、長按跳選單（複製、查詢這個使用者）；
   工具列推文、回文（只回到看板）、到底、檢查新推文、分享；「⋮」查詢作者資料、文章資訊、同作者／同標題文章、寄信給作者、複製全文、文章字級；自己的文章可編輯、改標題、刪除（編輯時可以改本文、在任一則推文下面插回應）
 - 搜尋看板（英文找板名、中文找標題）、加入我的最愛（看板「⋮」、搜尋結果、即時熱門）、查詢網友
 - 終端畫面：認不出來的畫面都退到這裡，有兩排軟鍵（含 Ctrl）、打字框
-- 設定：連線方式（SSH／WebSocket）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
+- 設定：連線方式（SSH／WebSocket）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、預設內文、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
 - 系統返回鍵、橫著滑回上一頁（方向可設）
 
 ### 還沒做
@@ -114,7 +114,7 @@ core（純 Kotlin，沒有 Android）
 - AGP 9.x 使用 built-in Kotlin：app **不要**套 `org.jetbrains.kotlin.android`；core 與 tools 是 Kotlin JVM module，套 `org.jetbrains.kotlin.jvm`，版本跟 Kotlin 一樣；
   Compose 套 `org.jetbrains.kotlin.plugin.compose`
 - JSch 用反射載入演算法實作，`app/proguard-rules.pro` 整包 keep；OkHttp 自帶規則
-- `android:allowBackup="false"`：本機資料只有加密過的帳密（金鑰離不開手機）、設定與看板裡的搜尋紀錄（`search_history`，也不隨換機傳輸）
+- `android:allowBackup="false"`：本機資料只有加密過的帳密（金鑰離不開手機）、設定、看板裡的搜尋紀錄（`search_history`）與發文草稿（`drafts`）（後兩份也不隨換機傳輸）
 - release 版開 R8（minify + shrinkResources）。簽名看環境變數：有 `QUIETPTT_KEYSTORE`、`QUIETPTT_KEYSTORE_PASSWORD`
   就用發版金鑰（PKCS12，alias `quietptt`）；沒有就用這台機器的 debug 金鑰
 - **給使用者裝的 APK**：正式版從 GitHub Release 來（debug 與 release 的差別、大小、換簽章要移除重裝：`docs/debug-vs-release.md`）。VM 的 debug 金鑰每個 session 都不一樣，簽章對不上的 APK 只能移除重裝（會忘記帳密，重打一次就好）
