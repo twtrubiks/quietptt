@@ -86,6 +86,18 @@ class PostTest {
     }
 
     @Test
+    fun postClearsTheBoardTemplateBeforeTyping() = runBlocking {
+        // 板主設了發文範本：編輯器一開就有字，先 Ctrl-Y 刪光才打內文
+        val ptt = gossiping(template = true)
+        val session = connect(ptt)
+        withTimeout(TEST_TIMEOUT_MS) { session.post("Gossiping", NewPost(category = 0, title = "有範本", body = "安安")) }
+        assertEquals(
+            listOf(Keys.ctrl('P'), "1\r", "有範本\r", Keys.ctrl('Y').repeat(23), "安安", Keys.ctrl('X'), "s\r", "0\r", "\r"),
+            ptt.received,
+        )
+    }
+
+    @Test
     fun postAddsTheFooterAfterABlankLine() = runBlocking {
         val ptt = gossiping()
         val session = connect(ptt)
@@ -158,7 +170,7 @@ class PostTest {
     }
 
     /** 停在 Gossiping 列表的假 PTT：Ctrl-P 進表單、Enter 兩次取消；打了標題進編輯器，Ctrl-X 存檔、問簽名檔、回列表。 */
-    private fun gossiping(canPost: Boolean = true, strangeAfterSave: Boolean = false): FakePtt {
+    private fun gossiping(canPost: Boolean = true, strangeAfterSave: Boolean = false, template: Boolean = false): FakePtt {
         var at = LIST
         return FakePtt(LIST) { input ->
             Thread.sleep(LAG_MS)
@@ -167,7 +179,9 @@ class PostTest {
                 at == NO_PERMISSION && input == "\r" -> LIST
                 at == POST_FORM && input.endsWith("\r") -> TITLE_PROMPT
                 at == TITLE_PROMPT && input == "\r" -> LIST
-                at == TITLE_PROMPT && input.endsWith("\r") -> EDITOR
+                at == TITLE_PROMPT && input.endsWith("\r") -> if (template) TEMPLATE_EDITOR else EDITOR
+                // 範本只有兩行：Ctrl-Y 按到第二個就刪光了，多按的沒事
+                at == TEMPLATE_EDITOR && input.startsWith(Keys.ctrl('Y').repeat(2)) && input.all { it == Keys.ctrl('Y')[0] } -> EDITOR
                 at.endsWith(EDITOR_STATUS) && input == Keys.ctrl('X') -> SAVE_PROMPT
                 // 打內文：編輯器把字畫上去（哪一列都好，畫面變了就行）
                 at.endsWith(EDITOR_STATUS) -> replaceRow(EDITOR, 0, input.replace("\r", " "))
@@ -200,7 +214,12 @@ class PostTest {
         )
         val TITLE_PROMPT = replaceRow(POST_FORM, 22, "標題：[問卦] ")
         const val EDITOR_STATUS = " 編輯文章  (^Z)說明 (^X)存檔 (^C)色碼 (^V)彩色   ║插入│aipr║  1:  1"
-        val EDITOR = replaceRow(List(24) { "" }.joinToString("\n"), 23, EDITOR_STATUS)
+
+        /** 空的編輯器照真的畫（fixture `post-editor`）：第 0 列空白，檔案結尾之後的每一列一個「~」。 */
+        val EDITOR = replaceRow((listOf("") + List(23) { "~" }).joinToString("\n"), 23, EDITOR_STATUS)
+
+        /** 板主設了發文範本：編輯器一開就有那幾行。 */
+        val TEMPLATE_EDITOR: String = replaceRow(replaceRow(EDITOR, 0, "※ 八卦板務請到 GossipPicket 檢舉板實名詢問"), 1, "※ (↑看完提醒請刪除ctrl + y)")
         val SAVE_PROMPT: String = replaceRow(
             replaceRow(replaceRow(List(24) { "" }.joinToString("\n"), 0, "【 檔案處理 】"), 1, "[S]儲存 (A)放棄 (E)繼續 (R/W/D)讀寫刪暫存檔"),
             2,

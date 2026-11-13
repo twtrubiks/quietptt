@@ -941,7 +941,8 @@ class Session(
 
     /**
      * 在 [board] 發一篇文章（pttbbs `do_general` → `vedit` → `write_file`）：
-     * 列表按 Ctrl-P → 種類打分類的號碼（不選就只按 Enter）→ 標題 Enter → 進編輯器（確定是插入模式、關掉自動縮排）打內文 →
+     * 列表按 Ctrl-P → 種類打分類的號碼（不選就只按 Enter）→ 標題 Enter → 進編輯器（確定是插入模式、關掉自動縮排）→
+     * 板主設的發文範本清掉（[clearTemplate]）→ 打內文 →
      * Ctrl-X 等「確定要儲存檔案嗎？」答 s → 之後的提示照問題答：簽名檔答 [NewPost.signature]、匿名板的名稱答 r（用真名）、「確定[y/N]」答 y、
      * 任意鍵按 Enter，直到回到文章列表。不能發文時的訊息按掉、原因丟出來。
      */
@@ -951,7 +952,7 @@ class Session(
         val titlePrompt = press(category + Keys.ENTER, form) { it is Page.PostForm && it.titleAsked }
         var page = press(clean(post.title).trim() + Keys.ENTER, titlePrompt) { it is Page.Editor || it is Page.PressAnyKey }
         if (page is Page.PressAnyKey) failPost(page)
-        page = typeBody(editorReady(page as Page.Editor), cleanBody(withFooter(post.body, post.footer)))
+        page = typeBody(clearTemplate(editorReady(page as Page.Editor)), cleanBody(withFooter(post.body, post.footer)))
         page = press(Keys.ctrl('X'), page) { it is Page.SavePrompt }
         // 答了 s 之後 PTT 就存了：後面出錯也可能已經發出去，丟 PostUnconfirmedException，App 不給直接重試
         try {
@@ -1409,6 +1410,31 @@ class Session(
     }
 
     /**
+     * 發新文章時編輯器裡已經有東西：那是板主設的發文範本（pttbbs `do_general` 把那個分類的 `postsample` 複製進來），清掉它，
+     * 不然會跟著內文一起貼出去。游標在第 1 行，Ctrl-Y（`delete_line`）一次送 [TEMPLATE_ROWS] 個：刪到只剩一行時是把那行清空，多按沒事。
+     * 畫面上（最下面的狀態列以外）還有字就再送一輪；[TEMPLATE_ROUNDS] 輪還清不完就 Ctrl-X、a 放棄，丟例外。
+     * 只看畫面有沒有字：範本尾巴的空行超出這幾輪刪的範圍會留著。
+     * 空的編輯器不是整片空白：檔案結尾之後的每一列畫一個「~」（pttbbs `edit.c` 的 `display_buffer`），那些列也算空的（[editorIsEmpty]）。
+     */
+    private suspend fun clearTemplate(from: Page.Editor): Page.Editor {
+        var editor = from
+        repeat(TEMPLATE_ROUNDS) {
+            if (editorIsEmpty(editor)) return editor
+            send(Keys.ctrl('Y').repeat(TEMPLATE_ROWS))
+            val page = awaitQuiet(quietMs = BODY_QUIET_MS, after = editor.screen)
+            editor = page as? Page.Editor ?: throw UnexpectedScreenException("清發文範本的時候離開了編輯器", page.screen)
+        }
+        if (editorIsEmpty(editor)) return editor
+        val screen = editor.screen
+        runCatching { abortEditor(editor) }.onFailure { if (it is CancellationException) throw it }
+        throw UnexpectedScreenException("這個板的發文範本清不掉，沒有發文", screen)
+    }
+
+    /** 編輯器裡沒有內容：狀態列以外的每一列不是空白就是只有一個「~」（檔案結尾之後的列）。 */
+    private fun editorIsEmpty(editor: Page.Editor): Boolean =
+        editor.screen.lines.dropLast(1).all { it.isBlank() || it.trimEnd() == "~" }
+
+    /**
      * 在編輯器裡一次送出 [text]（空的就不送），等編輯器把字畫完：內文長的話回應會分好幾段來，安靜 [BODY_QUIET_MS] 才算畫完。
      * 畫完不是編輯器就丟例外。
      */
@@ -1811,6 +1837,10 @@ class Session(
 
         /** 發文打內文時等編輯器畫完：內文長的話回應分好幾段來，安靜久一點才算。 */
         const val BODY_QUIET_MS = 600L
+
+        /** 清發文範本：一輪送幾個 Ctrl-Y（編輯器一頁 23 列）、最多幾輪。 */
+        const val TEMPLATE_ROWS = 23
+        const val TEMPLATE_ROUNDS = 20
 
         /** 登入途中停在認不出來的畫面多久，才按 Enter 推它一下。 */
         const val NUDGE_MS = 1_500L
