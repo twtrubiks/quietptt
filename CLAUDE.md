@@ -25,7 +25,7 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
   工具列推文、回文（只回到看板）、到底、檢查新推文、分享；「⋮」查詢作者資料、文章資訊、同作者／同標題文章、寄信給作者、複製全文、文章字級；自己的文章可編輯、改標題、刪除（編輯時可以改本文、在任一則推文下面插回應）
 - 搜尋看板（英文找板名、中文找標題）、加入我的最愛（看板「⋮」、搜尋結果、即時熱門）、查詢網友
 - 終端畫面：認不出來的畫面都退到這裡，有兩排軟鍵（含 Ctrl）、打字框
-- 設定：連線方式（SSH／WebSocket）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、預設內文、預設簽名檔、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
+- 設定：連線方式（SSH／WebSocket）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、預設內文、預設簽名檔（可預覽 PTT 上的簽名檔）、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
 - 系統返回鍵、橫著滑回上一頁（方向可設）
 
 ### 還沒做
@@ -55,7 +55,7 @@ app（Android、Compose）
   QuietPttApp（Route ＋ stack）  Connection（前景才連線、重連）  Credentials（KeyStore）  AppContainer
       │ 只透過 Session 與 Page
 core（純 Kotlin，沒有 Android）
-  ptt/Session        送按鍵、等畫面：login、showFavorites、showBoard、olderArticles、openArticle、articlePage、articleEnd、queryUser
+  ptt/Session        送按鍵、等畫面：login、showFavorites、showBoard、olderArticles、openArticle、articlePage、articleEnd、queryUser、signatures
   ptt/ScreenParser   Screen → Page（Login、MainMenu、Favorites、ClassRoot、MailMenu、MailList、MailForm、ArticleList、ReplyForm、ArticleView、提示、Unknown）
   terminal/Terminal  bytes → ScreenBuffer（vt100 跳脫序列、Big5-UAO）→ Screen（不可變的快照）
   transport/         Transport 介面：SshTransport（JSch）、WebSocketTransport（OkHttp）

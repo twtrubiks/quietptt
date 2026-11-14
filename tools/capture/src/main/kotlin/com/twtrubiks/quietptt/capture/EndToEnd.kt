@@ -37,7 +37,7 @@ import okhttp3.OkHttpClient
  *
  * 登入 → 我的最愛 → 進板 → 載入更早的 → 開推文最多的那篇、翻到最後、推文切成一則一則、標頭與排版 → 檢查新推文（重讀）→
  * 複製全文（[Session.wholeArticle]）→ 文章資訊（[Session.articleInfo]，一般文章與置底文）→ 退回 → 重整（[Session.reloadBoard]）→ 開置底文、在文章裡重整 → 搜尋（[searches]）→ 退回我的最愛 →
- * 再進一次同一個板（`showBoard(newest = true)`）→ 首頁另外三個分頁（[homeTabs]：分組討論、即時熱門、私人信件）→ 查詢網友（[queries]）。
+ * 再進一次同一個板（`showBoard(newest = true)`）→ 首頁另外三個分頁（[homeTabs]：分組討論、即時熱門、私人信件）→ 查詢網友、讀簽名檔（[queries]）。
  * 翻完文章之後試文章裡的跳頁（[jumps]：Home、End、`:` 行號、PgDn）。
  */
 suspend fun endToEnd(board: String) {
@@ -265,6 +265,7 @@ private suspend fun jumps(
 
 /**
  * 長按推文「查詢 xxx」（[Session.queryUser]）：查自己、查文章作者、查一個不存在的代號，每次都要回到主選單。
+ * 最後讀自己的簽名檔（[Session.signatures]，設定頁的預覽；只讀），也要回到主選單。
  * 欄位的值有上站時間、故鄉之類的，**只印標籤**跟對不對得上代號。
  */
 private suspend fun queries(
@@ -289,6 +290,10 @@ private suspend fun queries(
     val nobody = step("查詢網友（不存在的代號）") { session.queryUser("zzqqxxjj0099") ?: "沒有這個人" }
     say("  $nobody，回到主選單：${session.page is Page.MainMenu}")
     if (nobody != "沒有這個人" || session.page !is Page.MainMenu) ok = false
+    // 設定頁「預設簽名檔」的預覽（[Session.signatures]）：只讀，內容不印，只印有哪幾個、各幾列
+    val files = step("讀簽名檔") { session.signatures().map { it.number to it.lines.size } }
+    say("  簽名檔（號碼 to 列數）：$files，回到主選單：${session.page is Page.MainMenu}")
+    if (files !is List<*> || session.page !is Page.MainMenu) ok = false
     return ok
 }
 

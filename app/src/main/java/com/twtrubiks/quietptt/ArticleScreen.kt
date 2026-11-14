@@ -931,9 +931,9 @@ private val TERMINAL_FG_BRIGHT = listOf(
     Color(0xFF5555FF), Color(0xFFFF55FF), Color(0xFF55FFFF), Color(0xFFFFFFFF),
 )
 
-/** 把 [spans] 的顏色上到 [base]（已經標好連結）上；沒有顏色就原樣回傳。 */
+/** 把 [spans] 的顏色上到 [base]（已經標好連結）上；沒有顏色就原樣回傳。設定頁預覽簽名檔也用。 */
 @Composable
-private fun colored(base: AnnotatedString, spans: List<ColorSpan>): AnnotatedString {
+internal fun colored(base: AnnotatedString, spans: List<ColorSpan>): AnnotatedString {
     if (spans.isEmpty()) return base
     val palette = ansiColors()
     return remember(base, spans, palette) {

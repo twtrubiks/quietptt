@@ -1,16 +1,22 @@
 package com.twtrubiks.quietptt
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -19,6 +25,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,17 +38,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.twtrubiks.quietptt.core.ptt.Session
+import com.twtrubiks.quietptt.core.ptt.SignatureFile
 
 /**
  * 設定：一列一個項目（標題、下面一行灰色的說明），分成「外觀」「連線與登入」「發文」「資料」「帳號」「關於」六段。
  * 開關的在右邊放 Switch（點整列都算）；幾個選一個的右邊寫現在選的那個，點了跳對話框挑（「預設簽名檔」也是）；「預設內文」點了跳對話框打。
- * 登入著的時候（[account] 不是 null）「帳號」那段多一列「登出」，說明寫目前登入的帳號。
+ * 登入著的時候（[account] 不是 null）「帳號」那段多一列「登出」，說明寫目前登入的帳號；
+ * 「預設簽名檔」的對話框用 [session] 把 PTT 上的簽名檔讀來預覽（[DefaultSignatureDialog]），沒登入就只有選項。
  * 這裡沒有、以後也不會有的：遙測開關（因為沒有遙測）、背景通知、前景服務。
  */
 @Composable
-fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
+fun SettingsScreen(account: String?, session: Session?, onBack: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
     val container = context.container
     val uriHandler = LocalUriHandler.current
@@ -50,6 +62,9 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
     }
     var editingTemplate by rememberSaveable { mutableStateOf(false) }
     var choosingSignature by rememberSaveable { mutableStateOf(false) }
+    // PTT 上的簽名檔：第一次打開「預設簽名檔」才讀，讀到的留到離開設定頁（或換了連線）
+    val signatureLoading = remember(session) { Action() }
+    var signatureFiles by remember(session) { mutableStateOf<List<SignatureFile>?>(null) }
     var confirmForget by rememberSaveable { mutableStateOf(false) }
 
     fun open(url: String) {
@@ -101,7 +116,7 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
             )
 
             SettingRow(
-                "預設簽名檔", "發文、回文時先選好這個；發文頁還能換。寫信不套用", "default_signature_row",
+                "預設簽名檔", "發文、回文時先選好這個；發文頁還能換。點進去可以預覽", "default_signature_row",
                 value = signatureLabel(defaultSignature(container.defaultSignature.value)),
                 onClick = { choosingSignature = true },
             )
@@ -143,16 +158,19 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
         )
     }
     if (choosingSignature) {
-        ChoiceDialog(
-            title = "預設簽名檔",
-            choices = SIGNATURES.map(::signatureLabel),
-            selected = SIGNATURES.indexOf(defaultSignature(container.defaultSignature.value)),
+        DefaultSignatureDialog(
+            selected = defaultSignature(container.defaultSignature.value),
+            online = session != null,
+            files = signatureFiles,
+            loading = signatureLoading,
+            onLoad = {
+                if (session != null) signatureLoading.launch(container) { signatureFiles = session.signatures() }
+            },
             onSelect = {
-                container.defaultSignature.set(SIGNATURES[it])
+                container.defaultSignature.set(it)
                 choosingSignature = false
             },
             onDismiss = { choosingSignature = false },
-            tag = "default_signature",
         )
     }
     if (confirmForget) {
@@ -328,4 +346,104 @@ private fun BodyTemplateDialog(initial: String, onSave: (String) -> Unit, onDism
         confirmButton = { TextButton(onClick = { onSave(text) }, modifier = Modifier.testTag("body_template_save")) { Text("儲存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
+}
+
+/**
+ * 挑「預設簽名檔」的對話框：一個選項一列（不使用／簽名檔 1～9／隨機，testTag 是 `default_signature_序號`），點了就存、關掉。
+ * 登入著（[online]）的話一打開就把 PTT 上的簽名檔讀來（[onLoad] 叫 `Session.signatures`：終端會走到主選單，底下那一頁之後自己走回去），
+ * 讀的時候最上面轉圈；讀到的（[files]）畫在「簽名檔 N」下面（[SignaturePreview]），PTT 上沒有的那幾個寫「沒有這個簽名檔」。
+ * 讀過就不再讀，要再讀按「重新讀取」（在 PTT 上改過簽名檔之後）。沒登入、讀不到都還是可以選。
+ */
+@Composable
+private fun DefaultSignatureDialog(
+    selected: String,
+    online: Boolean,
+    files: List<SignatureFile>?,
+    loading: Action,
+    onLoad: () -> Unit,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    LaunchedEffect(online) {
+        if (online && files == null) onLoad()
+    }
+    val note = MaterialTheme.typography.bodySmall
+    val faded = MaterialTheme.colorScheme.onSurfaceVariant
+    AlertDialog(
+        modifier = DialogTestTags,
+        onDismissRequest = onDismiss,
+        title = { Text("預設簽名檔") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                when {
+                    !online -> Text("登入之後才能預覽簽名檔的內容", style = note, color = faded)
+                    loading.active -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("default_signature_loading")) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("正在讀取 PTT 上的簽名檔…", style = note, color = faded)
+                    }
+                    loading.error != null -> Text("讀不到簽名檔：${loading.error}", style = note, color = MaterialTheme.colorScheme.error)
+                    files != null && files.isEmpty() ->
+                        Text("PTT 上還沒有簽名檔（個人設定區 →【個人檔案】→ 編輯簽名檔）", style = note, color = faded)
+                }
+                SIGNATURES.forEachIndexed { i, signature ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("default_signature_$i")
+                            .clickable { onSelect(signature) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = signature == selected, onClick = null, modifier = Modifier.padding(8.dp))
+                        Text(signatureLabel(signature))
+                    }
+                    val number = signature.toIntOrNull()?.takeIf { it > 0 }
+                    if (number != null && files != null) {
+                        val file = files.firstOrNull { it.number == number }
+                        if (file == null || file.lines.isEmpty()) {
+                            Text(
+                                if (file == null) "沒有這個簽名檔" else "（空的）",
+                                style = note,
+                                color = faded.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(start = 40.dp, bottom = 4.dp),
+                            )
+                        } else {
+                            SignaturePreview(file, Modifier.padding(start = 40.dp, bottom = 4.dp).testTag("default_signature_preview_$number"))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("關閉") } },
+        dismissButton = {
+            if (online) {
+                TextButton(onClick = onLoad, enabled = !loading.active, modifier = Modifier.testTag("default_signature_reload")) { Text("重新讀取") }
+            }
+        },
+    )
+}
+
+/**
+ * 一個簽名檔照 PTT 上的樣子：等寬字、不換行（太寬就整塊橫著捲）、照 PTT 的 ANSI 色（[colored]，跟文章本文同一組顏色），外面一塊淡淡的底。
+ */
+@Composable
+private fun SignaturePreview(file: SignatureFile, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.small)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        file.lines.forEachIndexed { i, line ->
+            Text(
+                colored(AnnotatedString(line), file.colors.getOrElse(i) { emptyList() }),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                softWrap = false,
+                maxLines = 1,
+            )
+        }
+    }
 }

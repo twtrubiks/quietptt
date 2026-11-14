@@ -290,6 +290,7 @@ fun QuietPttApp() {
                 when {
                     settingsOpen -> SettingsScreen(
                         account = (state as? ConnectionState.Online)?.account,
+                        session = (state as? ConnectionState.Online)?.session,
                         onBack = { settingsOpen = false },
                         onLogout = {
                             container.connection.logout()
