@@ -71,7 +71,8 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
         mutableStateOf(container.bodyTemplate.value.let { TextFieldValue(it, TextRange(it.length)) })
     }
     val body = bodyField.text
-    var signature by rememberSaveable(board) { mutableStateOf("0") }
+    // 先選好設定的「預設簽名檔」，這次要換再點按鈕
+    var signature by rememberSaveable(board) { mutableStateOf(defaultSignature(container.defaultSignature.value)) }
     var categoryOpen by rememberSaveable { mutableStateOf(false) }
     var signatureOpen by rememberSaveable { mutableStateOf(false) }
     var confirmOpen by rememberSaveable { mutableStateOf(false) }
@@ -339,6 +340,9 @@ internal fun ChoiceDialog(
 
 /** 簽名檔的選項：PTT 的「0=不加、1～9、x=隨機」。 */
 val SIGNATURES: List<String> = listOf("0") + (1..9).map { it.toString() } + "x"
+
+/** 設定裡存的預設簽名檔 [saved]；不是 [SIGNATURES] 裡的（存壞了）就當不加。 */
+fun defaultSignature(saved: String): String = if (saved in SIGNATURES) saved else "0"
 
 fun signatureLabel(signature: String): String = when (signature) {
     "0" -> "不使用簽名檔"

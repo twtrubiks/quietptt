@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 設定：一列一個項目（標題、下面一行灰色的說明），分成「外觀」「連線與登入」「發文」「資料」「帳號」「關於」六段。
- * 開關的在右邊放 Switch（點整列都算）；幾個選一個的右邊寫現在選的那個，點了跳對話框挑；「預設內文」點了跳對話框打。
+ * 開關的在右邊放 Switch（點整列都算）；幾個選一個的右邊寫現在選的那個，點了跳對話框挑（「預設簽名檔」也是）；「預設內文」點了跳對話框打。
  * 登入著的時候（[account] 不是 null）「帳號」那段多一列「登出」，說明寫目前登入的帳號。
  * 這裡沒有、以後也不會有的：遙測開關（因為沒有遙測）、背景通知、前景服務。
  */
@@ -49,6 +49,7 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
     var editingTemplate by rememberSaveable { mutableStateOf(false) }
+    var choosingSignature by rememberSaveable { mutableStateOf(false) }
     var confirmForget by rememberSaveable { mutableStateOf(false) }
 
     fun open(url: String) {
@@ -99,6 +100,12 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
                 onClick = { editingTemplate = true },
             )
 
+            SettingRow(
+                "預設簽名檔", "發文、回文時先選好這個；發文頁還能換。寫信不套用", "default_signature_row",
+                value = signatureLabel(defaultSignature(container.defaultSignature.value)),
+                onClick = { choosingSignature = true },
+            )
+
             SectionHeader("資料")
             SettingRow(
                 "清除搜尋紀錄",
@@ -133,6 +140,19 @@ fun SettingsScreen(account: String?, onBack: () -> Unit, onLogout: () -> Unit) {
                 editingTemplate = false
             },
             onDismiss = { editingTemplate = false },
+        )
+    }
+    if (choosingSignature) {
+        ChoiceDialog(
+            title = "預設簽名檔",
+            choices = SIGNATURES.map(::signatureLabel),
+            selected = SIGNATURES.indexOf(defaultSignature(container.defaultSignature.value)),
+            onSelect = {
+                container.defaultSignature.set(SIGNATURES[it])
+                choosingSignature = false
+            },
+            onDismiss = { choosingSignature = false },
+            tag = "default_signature",
         )
     }
     if (confirmForget) {
