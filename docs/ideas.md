@@ -21,16 +21,11 @@ App 打開時（一天最多一次）查 GitHub 的 `releases/latest`，有新�
 
 GitHub Actions 每週 `ssh-keyscan ptt.cc` 跟 `PttHost.KNOWN_HOSTS` 比，不一樣就開 issue。
 
-## 量每一步花多少時間
-
-`recordings/` 的錄影每一段收到的 bytes 都有時間（`Recording.Received.ms`）。寫個小工具算「送鍵之後分幾段來、段跟段隔多久」，
-看時間花在哪一步、`Session.QUIET_MS`（150 ms）是不是太保守。只在本機分析錄影，不連 PTT。
-VM 經 proxy 從國外連，間隔跟手機上不一樣，只能當參考。下面「少等畫面安靜」看這個結果再決定怎麼做。
-
 ## 少等畫面安靜
 
 每送一次鍵都要等畫面 150 ms 沒再變才算畫完（`Session.QUIET_MS`），網路好的時候這段比來回一趟還久。
 文章頁看到頁尾進度列畫完就不等（`pageQuiet`）；我的最愛、看板列表、載入更早的、搜尋、選單之間還在等。
+段跟段實際隔多久用 `capture --e2e` 最後印的時間量測看（`docs/testing.md`），量過再決定怎麼做。
 
 - 找每一種頁面「最後才畫」的東西，看到就不等。列表要小心：只移游標時 PTT 只重畫兩列，頁尾還是上一次的，會把畫到一半的當成畫完
 - 或直接把 150 ms 縮短：fixture 測不到時間上的問題，只能在真機上看

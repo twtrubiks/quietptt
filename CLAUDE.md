@@ -60,7 +60,7 @@ core（純 Kotlin，沒有 Android）
   ptt/ScreenParser   Screen → Page（Login、MainMenu、Favorites、ClassRoot、MailMenu、MailList、MailForm、ArticleList、ReplyForm、ArticleView、提示、Unknown）
   terminal/Terminal  bytes → ScreenBuffer（vt100 跳脫序列、Big5-UAO）→ Screen（不可變的快照）
   transport/         Transport 介面：SshTransport（JSch）、WebSocketTransport（OkHttp）
-  record/            錄影格式（Recording）與遮帳號、IP（Redactor）：tools/capture 寫、測試讀；App 用不到（R8 會拿掉）
+  record/            錄影格式（Recording）、遮帳號與 IP（Redactor）、量回應分幾段與間隔（Timing）：tools/capture 寫、測試讀；App 用不到（R8 會拿掉）
 ```
 
 - **core 不能 import android.\***（它是 Kotlin JVM module，compile 就會擋）。要碰 Android 的放 app

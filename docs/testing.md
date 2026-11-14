@@ -59,6 +59,24 @@ tools/capture/build/install/capture/bin/capture --ws
 tools/capture/build/install/capture/bin/capture --e2e MobileComm
 ```
 
+**時間量測**：`--e2e` 走完之後印一份——每次送鍵之後 PTT 的回應分幾段來、段跟段隔多久（`core/.../record/Timing.kt`），
+用來看 `Session.QUIET_MS`（畫面多久沒變就當它畫完）該是多少：
+
+- 送鍵到第一段的時間、一次回應分幾段、段跟段間隔的中位數／90%／99%／最長
+- 安靜時間設成 30／50／80／100／150 ms 時，比它長的間隔各有幾個，其中「畫到一半」的幾個：
+  那一段到了之後已經認得出是最後那種頁面（`ScreenParser`）、內容卻還沒到齊，安靜時間比這個間隔短就會把它當成畫完。
+  還認不出來的（過場畫面、PTT 自己在等）`Session` 本來就繼續等，不算。這是近似值：`Session` 每一步等的條件更嚴，實際會出錯的不會比它多
+- 最長的 15 個間隔各在哪一步、當時認成哪種頁面
+
+只印數字、步驟名稱與頁面種類，沒有畫面上的字。分段跟網路有關，要在想知道的網路上量：加 `--ssh` 走 SSH（App 預設的連線方式；
+雲端 VM 的 22 埠被擋，在自己的電腦跑），不加走 WebSocket；VM 經 proxy 從國外連，數字只能當參考。
+錄好的錄影（`recording-時間.txt`）用 `--timing` 分析，不連 PTT：
+
+```bash
+tools/capture/build/install/capture/bin/capture --e2e MobileComm --ssh
+tools/capture/build/install/capture/bin/capture --timing tools/capture/out/recording-時間.txt
+```
+
 **會寫到 PTT 的**（發文、推文、回文、改標題、編輯內文與在推文下面回應、刪文）另外是 `capture --e2e-write`，**只在使用者明確要求時跑**：
 程式寫死只在 **Test 板**、只動自己剛發的那一篇（每一步之前確認列表上那篇的作者是自己），推文推在自己的文章上（PTT 只給 →），
 最後刪掉；中途失敗也會把那篇刪掉。回文是回自己那篇兩次（採用原標題＋引用原文、新標題＋不引用），讀回來對標題、內文、引言之後各自刪掉。順便走找看板（板名補完「Mo」「M」、中文「測試」），發文、刪文之後 PTT 的訊息畫面會印出來。

@@ -83,3 +83,27 @@ class Recorder(val recordingFile: File, val screensFile: File) {
 class RecordingTransport(private val inner: Transport, private val recorder: Recorder) : Transport by inner {
     override suspend fun read(): ByteArray? = inner.read()?.also { recorder.received(it) }
 }
+
+/**
+ * 包住真的連線，記下每次送出、每段收到的時間（[recording]），給 `Timing` 算回應分幾段、隔多久。
+ * 送出去的 bytes 不留（裡面有帳號密碼），說明欄是當時在走哪一步（[step]）；收到的 bytes 只留在記憶體裡重播用，不寫檔、不印。
+ */
+class TimingTransport(private val inner: Transport) : Transport by inner {
+    private val start = System.nanoTime()
+    private val events = ArrayList<Recording.Event>()
+
+    /** 現在在走哪一步（`--e2e` 每一步開始時設）。 */
+    @Volatile
+    var step: String = ""
+
+    private fun now(): Long = (System.nanoTime() - start) / 1_000_000
+
+    override suspend fun read(): ByteArray? = inner.read()?.also { synchronized(events) { events += Recording.Received(now(), it.copyOf()) } }
+
+    override suspend fun write(bytes: ByteArray) {
+        synchronized(events) { events += Recording.Sent(now(), null, step) }
+        inner.write(bytes)
+    }
+
+    fun recording(): Recording = synchronized(events) { Recording(events.toList()) }
+}

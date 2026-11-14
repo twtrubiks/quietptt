@@ -3,7 +3,9 @@ package com.twtrubiks.quietptt.capture
 import com.twtrubiks.quietptt.core.ptt.Page
 import com.twtrubiks.quietptt.core.ptt.ScreenParser
 import com.twtrubiks.quietptt.core.ptt.Session
+import com.twtrubiks.quietptt.core.record.Recording
 import com.twtrubiks.quietptt.core.record.Redactor
+import com.twtrubiks.quietptt.core.record.Timing
 import com.twtrubiks.quietptt.core.terminal.Big5Uao
 import com.twtrubiks.quietptt.core.terminal.Keys
 import com.twtrubiks.quietptt.core.terminal.Screen
@@ -52,8 +54,19 @@ fun main(args: Array<String>): Unit = runBlocking {
         return@runBlocking
     }
     // --e2e [看板]：用 App 的 Session 照 App 的順序走一次（見 EndToEnd.kt），不錄影
+    // 加 --ssh 走 SSH（App 預設的連線方式），不然走 WebSocket；走完印一份時間量測
     args.indexOf("--e2e").takeIf { it >= 0 }?.let { i ->
-        endToEnd(args.getOrNull(i + 1)?.takeUnless { it.startsWith("--") } ?: "MobileComm")
+        endToEnd(args.getOrNull(i + 1)?.takeUnless { it.startsWith("--") } ?: "MobileComm", ssh = "--ssh" in args)
+        return@runBlocking
+    }
+    // --timing 錄影檔…：分析錄好的錄影（recording-時間.txt），每個檔印一份時間量測。不連 PTT
+    args.indexOf("--timing").takeIf { it >= 0 }?.let { i ->
+        val files = args.drop(i + 1).takeWhile { !it.startsWith("--") }
+        require(files.isNotEmpty()) { "--timing 後面要接錄影檔" }
+        for (file in files) {
+            println("$file　" + Timing.report(Recording.parse(File(file).readText()), Session.QUIET_MS))
+            println()
+        }
         return@runBlocking
     }
     val out = File("tools/capture/out").apply { mkdirs() }

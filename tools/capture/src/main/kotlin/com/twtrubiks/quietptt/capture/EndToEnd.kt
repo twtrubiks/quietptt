@@ -21,9 +21,11 @@ import com.twtrubiks.quietptt.core.ptt.header
 import com.twtrubiks.quietptt.core.ptt.items
 import com.twtrubiks.quietptt.core.ptt.mergedWith
 import com.twtrubiks.quietptt.core.record.Redactor
+import com.twtrubiks.quietptt.core.record.Timing
 import kotlinx.coroutines.flow.first
 import com.twtrubiks.quietptt.core.terminal.Keys
 import com.twtrubiks.quietptt.core.ptt.ScreenParser
+import com.twtrubiks.quietptt.core.transport.SshTransport
 import com.twtrubiks.quietptt.core.transport.WebSocketTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,8 +41,11 @@ import okhttp3.OkHttpClient
  * 複製全文（[Session.wholeArticle]）→ 文章資訊（[Session.articleInfo]，一般文章與置底文）→ 退回 → 重整（[Session.reloadBoard]）→ 開置底文、在文章裡重整 → 搜尋（[searches]）→ 退回我的最愛 →
  * 再進一次同一個板（`showBoard(newest = true)`）→ 首頁另外三個分頁（[homeTabs]：分組討論、即時熱門、私人信件）→ 查詢網友、讀簽名檔（[queries]）。
  * 翻完文章之後試文章裡的跳頁（[jumps]：Home、End、`:` 行號、PgDn）。
+ *
+ * 最後印一份時間量測（[Timing.report]）：每次送鍵之後回應分幾段來、段跟段隔多久，看 [Session.QUIET_MS] 該是多少。
+ * [ssh]：走 SSH（App 預設的連線方式；雲端 VM 的 22 埠被擋，只能在自己的電腦用），不然走 WebSocket。兩種分段的方式不一樣，各量各的。
  */
-suspend fun endToEnd(board: String) {
+suspend fun endToEnd(board: String, ssh: Boolean = false) {
     val id = System.getenv("PTT_ID")?.trim().orEmpty()
     val password = System.getenv("PTT_PASSWORD").orEmpty()
     require(id.isNotEmpty() && password.isNotEmpty()) { "沒有環境變數 PTT_ID、PTT_PASSWORD" }
@@ -49,11 +54,13 @@ suspend fun endToEnd(board: String) {
 
     val http = OkHttpClient()
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val session = Session(WebSocketTransport(http), scope)
+    val timing = TimingTransport(if (ssh) SshTransport() else WebSocketTransport(http))
+    val session = Session(timing, scope)
     var failed = false
     // [private]：畫面上是私人的東西（信箱、信）：失敗時不印畫面、不印例外訊息（裡面可能帶著畫面上的字），只印認成哪一種畫面
     suspend fun <T> step(name: String, private: Boolean = false, block: suspend () -> T): T? {
         val started = System.currentTimeMillis()
+        timing.step = name
         return try {
             block().also { say("✓ $name（${System.currentTimeMillis() - started} ms）") }
         } catch (e: Exception) {
@@ -205,6 +212,8 @@ suspend fun endToEnd(board: String) {
         scope.cancel()
         http.dispatcher.executorService.shutdown()
         say(if (failed) "有步驟失敗" else "全部走完")
+        say("")
+        say("${if (ssh) "SSH" else "WebSocket"}　" + Timing.report(timing.recording(), Session.QUIET_MS))
     }
 }
 
