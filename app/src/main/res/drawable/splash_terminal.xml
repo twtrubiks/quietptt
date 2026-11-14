@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 系統啟動畫面的圖示：App 圖示（ic_launcher_foreground.xml）的終端視窗，還沒有「>_」；圓底是 windowSplashScreenIconBackgroundColor -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/ic_terminal"
+        android:pathData="M32,34L76,34A4,4 0,0 1,80 38L80,70A4,4 0,0 1,76 74L32,74A4,4 0,0 1,28 70L28,38A4,4 0,0 1,32 34Z" />
+</vector>

@@ -1,6 +1,10 @@
 package com.twtrubiks.quietptt
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -26,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import com.twtrubiks.quietptt.core.ptt.ArticleRef
@@ -216,7 +221,9 @@ private fun articleRef(saved: String): ArticleRef =
 
 /**
  * 整個 App。導覽是 sealed interface 的 [Route] ＋ rememberSaveable 的 stack，不另外引入 Navigation 套件。
- * 沒登入時只有登入頁（與設定）；登入後照 stack 顯示。
+ * 沒登入時只有登入頁（與設定）；登入後照 stack 顯示。自動登入（打開 App、背景斷線後回來）的時候最上面蓋著連線畫面（[ConnectingScreen]），
+ * 一出現就整個蓋住（不淡入，底下的登入頁不會閃出來），登好了淡出、露出我的最愛或剛剛那頁；失敗淡出露出登入頁與原因。
+ * 蓋著的時候底下照常是登入頁（它要看得到「自動登入密碼不對」那一下才換到打密碼那層），只是點不到、無障礙與 UiAutomator 也看不到。
  *
  * 往回走只動 stack，不直接送按鍵：回到的那一頁進來時會叫 Session 從現在的畫面走過去（看板按左鍵退回列表之類的），
  * 從終端畫面回來時也一樣對得齊。系統的返回鍵：設定頁先關設定，其他頁 pop，到我的最愛（或登入頁）才交給系統離開。
@@ -244,6 +251,10 @@ fun QuietPttApp() {
     var openMailTab by rememberSaveable { mutableStateOf(false) }
     // 首頁停在哪個分頁（停在私人信件就不跳「你有新信件」）；HomeScreen 每次停下來都會再告訴一次，不用存
     var homeTab by remember { mutableStateOf(HomeTab.FAVORITES) }
+    val autoLogin = state.autoLoginProgress()
+    // 淡出那 0.3 秒狀態已經不是自動登入了，連線畫面照最後一次的帳號與步驟畫
+    var lastAutoLogin by remember { mutableStateOf<AutoLoginProgress?>(null) }
+    LaunchedEffect(autoLogin) { if (autoLogin != null) lastAutoLogin = autoLogin }
 
     fun push(route: Route) {
         stack = stack + route
@@ -367,28 +378,38 @@ fun QuietPttApp() {
                     else -> {
                         // 解密只在登入頁出現時做一次，不是每次重組都做；忘掉一組之後重讀
                         var savedAccounts by remember { mutableStateOf(container.credentials.loadAll()) }
-                        LoginScreen(
-                            state = state,
-                            savedAccounts = savedAccounts,
-                            lastLogin = container.credentials::lastLogin,
-                            onForget = { name ->
-                                container.credentials.remove(name)
-                                savedAccounts = container.credentials.loadAll()
-                            },
-                            rememberPassword = container.rememberPassword.value,
-                            onRememberChange = container.rememberPassword::set,
-                            onLogin = { account, password ->
-                                container.scope.launch {
-                                    container.connection.login(account, password, remember = container.rememberPassword.value)
-                                }
-                            },
-                            onKickOthers = container.connection::retryKickingOthers,
-                            onSettings = { settingsOpen = true },
-                            startAtList = switching,
-                        )
+                        Box(if (autoLogin != null) Modifier.clearAndSetSemantics {} else Modifier) {
+                            LoginScreen(
+                                state = state,
+                                savedAccounts = savedAccounts,
+                                lastLogin = container.credentials::lastLogin,
+                                onForget = { name ->
+                                    container.credentials.remove(name)
+                                    savedAccounts = container.credentials.loadAll()
+                                },
+                                rememberPassword = container.rememberPassword.value,
+                                onRememberChange = container.rememberPassword::set,
+                                onLogin = { account, password ->
+                                    container.scope.launch {
+                                        container.connection.login(account, password, remember = container.rememberPassword.value)
+                                    }
+                                },
+                                onKickOthers = container.connection::retryKickingOthers,
+                                onSettings = { settingsOpen = true },
+                                startAtList = switching,
+                            )
+                        }
                     }
                 }
                 SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+            }
+            // 在 safeDrawingPadding 外面：圖示用整個視窗置中，跟系統啟動畫面同一個位置
+            AnimatedVisibility(
+                visible = autoLogin != null,
+                enter = EnterTransition.None,
+                exit = fadeOut(tween(300)),
+            ) {
+                (autoLogin ?: lastAutoLogin)?.let { ConnectingScreen(it) }
             }
         }
     }

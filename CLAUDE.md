@@ -11,7 +11,8 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
 
 ### 已經做了
 
-- 登入：多帳號（記好幾組、登入頁挑；一次只連一條）、記住帳號與密碼、自動登入、重複登入照設定刪不刪其他連線、失敗可看當時的畫面
+- 登入：多帳號（記好幾組、登入頁挑；一次只連一條）、記住帳號與密碼、自動登入、重複登入照設定刪不刪其他連線、失敗可看當時的畫面；
+  自動登入與背景回來的重登是連線畫面（App 圖示裡的「>_」一格一格拼出來，接在 Android 12 起的系統啟動畫面後面）
 - 首頁五個分頁（最下面一排，點分頁或左右滑）：
   - 我的最愛：整份列出（超過一頁也列）、有新文章的板名後面一個藍點、右邊是人氣（爆／HOT／人數，照 PTT 的顏色）、長按設為已讀／未讀、改位置／移除
   - 分組討論：分類、子分類、分類裡的看板
@@ -51,7 +52,7 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
 
 ```
 app（Android、Compose）
-  LoginScreen / HomeScreen（我的最愛、分組討論、即時熱門、私人信件、我）/ ClassBoardsScreen / BoardScreen / ArticleScreen / ReplyPostScreen / MailScreen / WriteMailScreen / TerminalScreen / SettingsScreen
+  LoginScreen / ConnectingScreen / HomeScreen（我的最愛、分組討論、即時熱門、私人信件、我）/ ClassBoardsScreen / BoardScreen / ArticleScreen / ReplyPostScreen / MailScreen / WriteMailScreen / TerminalScreen / SettingsScreen
   QuietPttApp（Route ＋ stack）  Connection（前景才連線、重連）  Credentials（KeyStore）  AppContainer
       │ 只透過 Session 與 Page
 core（純 Kotlin，沒有 Android）

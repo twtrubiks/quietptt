@@ -34,9 +34,15 @@ sealed interface ConnectionState {
         val tooManyLogins: Boolean = false,
     ) : ConnectionState
 
-    data object Connecting : ConnectionState
+    /**
+     * 連上 PTT 中；[account] 是要登入的代號。
+     * [automatic]：打開 App 的自動登入、背景斷線後回來的自動重登——畫面蓋上連線畫面（[ConnectingScreen]），不顯示登入頁；
+     * 在登入頁按的（含「刪除其他連線再登入」）是 false，登入頁自己轉圈。
+     */
+    data class Connecting(val account: String, val automatic: Boolean = false) : ConnectionState
 
-    data object LoggingIn : ConnectionState
+    /** 連上了、正在登入（打帳號密碼、答中間的問題）；欄位同 [Connecting]。 */
+    data class LoggingIn(val account: String, val automatic: Boolean = false) : ConnectionState
 
     /**
      * 登入了；[account] 是登入的代號（判斷文章是不是自己的）。
@@ -55,6 +61,8 @@ sealed interface ConnectionState {
  * - 回到前景時，如果是因為退到背景才斷的、而且記得密碼，自動重新登入（[ConnectionState.Online.resumed]，頁面留在原地）；
  *   其他原因斷的回登入頁
  * - 打開 App（這個 process 第一次到前景）時，[autoLogin] 開著又記得上次那組的密碼，就直接登入（[loginOnLaunch]，BePTT 的「自動登入主帳號」）
+ * - 這兩種自動登入（[loginAutomatically]）一開始就在主執行緒把狀態改成連線中（[ConnectionState.Connecting.automatic]），
+ *   打開 App、回到前景畫的第一格就是連線畫面，不會先閃一下登入頁
  * - 新信不另外查：PTT 的標題列寫了「你有新信件」（[Session.newMail]）才提醒，同一批信只提醒一次（[mailAlert]）
  *
  * 這裡的函式在 `AppContainer.scope` 裡跑，那個 scope 沒有例外處理器：例外丟出去 App 就閃退，所以一律接住、變成 [ConnectionState.Offline]。
@@ -110,12 +118,28 @@ class Connection(
         resumed: Boolean = false,
         kickOthers: Boolean? = null,
     ): LoginResult = loginLock.withLock {
-        loginLocked(Attempt(account, password, remember, resumed), kickOthers ?: kickOtherLogins())
+        loginLocked(Attempt(account, password, remember, resumed), kickOthers ?: kickOtherLogins(), automatic = false)
+    }
+
+    /**
+     * 打開 App 的自動登入、背景斷線後回來的自動重登：頁面留在原地（[ConnectionState.Online.resumed]），畫面是連線畫面。
+     * 狀態**先**在這裡（叫的那條執行緒，通常是主執行緒的 onStart）改成連線中，再排隊登入：
+     * 回到前景時 Compose 畫第一格之前狀態就不是 Offline 了，不會先閃一下登入頁。只在 Offline 時改：別的登入正在跑就不蓋掉它的狀態。
+     */
+    private fun loginAutomatically(account: String, password: String) {
+        val now = _state.value
+        if (now is ConnectionState.Offline) _state.compareAndSet(now, ConnectionState.Connecting(account, automatic = true))
+        scope.launch {
+            loginLock.withLock {
+                loginLocked(Attempt(account, password, remember = true, resumed = true), kickOtherLogins(), automatic = true)
+            }
+        }
     }
 
     /**
      * 登入頁的「刪除其他連線再登入」：上一次因為其他連線已經有 3 條被擋下（[ConnectionState.Offline.tooManyLogins]），
      * 這次重複登入答 y、其他照舊（同一組帳密、自動重登的話頁面留在原地）。只用這一次，設定不變。
+     * 是在登入頁按的，所以跟手動登入一樣在登入頁轉圈，不蓋連線畫面。
      */
     fun retryKickingOthers() {
         val attempt = blocked ?: return
@@ -131,15 +155,15 @@ class Connection(
     fun mailAlert(account: String, newMail: Boolean): Boolean =
         if (newMail) mailAlerted.add(account) else { mailAlerted.remove(account); false }
 
-    private suspend fun loginLocked(attempt: Attempt, kickOthers: Boolean): LoginResult {
+    private suspend fun loginLocked(attempt: Attempt, kickOthers: Boolean, automatic: Boolean): LoginResult {
         val account = attempt.account
         val password = attempt.password
         val remember = attempt.remember
         val resumed = attempt.resumed
         blocked = null
-        disconnect(null)
+        // 斷掉舊的連線、狀態直接改成連線中：中間不經過 Offline，自動登入的連線畫面不會閃一下登入頁
+        drop(ConnectionState.Connecting(account, automatic))
         val session = Session(newTransport(), scope)
-        _state.value = ConnectionState.Connecting
         try {
             session.connect()
         } catch (e: CancellationException) {
@@ -152,7 +176,7 @@ class Connection(
             _state.value = ConnectionState.Offline(reason)
             return LoginResult.Failed(reason, session.screens.value)
         }
-        _state.value = ConnectionState.LoggingIn
+        _state.value = ConnectionState.LoggingIn(account, automatic)
         // Session.login 自己不丟例外（逾時、斷線都變成 Failed），這裡只防萬一
         val result = try {
             session.login(account, password, kickOthers = kickOthers)
@@ -214,7 +238,7 @@ class Connection(
     private fun resumeIfDropped() {
         if (!droppedInBackground.compareAndSet(true, false)) return
         val saved = credentials.load()
-        if (saved?.password != null) scope.launch { login(saved.name, saved.password, remember = true, resumed = true) }
+        if (saved?.password != null) loginAutomatically(saved.name, saved.password)
     }
 
     /**
@@ -227,18 +251,21 @@ class Connection(
         if (!autoLogin()) return
         val saved = credentials.load() ?: return
         val password = saved.password ?: return
-        scope.launch { login(saved.name, password, remember = true, resumed = true) }
+        loginAutomatically(saved.name, password)
     }
 
     /**
-     * 自己斷線（登入前先斷舊的、退到背景太久）：**先**把 [session] 清掉、狀態改成 Offline，再關連線。
+     * 自己斷線（退到背景太久、登出；登入前先斷舊的那條走 [drop]）：**先**把 [session] 清掉、狀態改成 Offline，再關連線。
      * 順序反過來的話，關連線的當下 [watchSession] 在另一條執行緒醒來，看到 [session] 還是它、狀態還是 Online，
      * 會當成「連線被對方斷了」；剛回前景 15 秒內還會當成背景斷線、馬上自動重登（以前登出完立刻又登進去，就是這樣）。
      */
-    fun disconnect(reason: String?) {
+    fun disconnect(reason: String?) = drop(ConnectionState.Offline(reason))
+
+    /** [disconnect] 的本體：狀態改成 [next]（不是 Online），再關舊的連線。登入前斷舊的那條直接改成連線中。 */
+    private fun drop(next: ConnectionState) {
         val old = session
         session = null
-        _state.value = ConnectionState.Offline(reason)
+        _state.value = next
         old?.close()
     }
 

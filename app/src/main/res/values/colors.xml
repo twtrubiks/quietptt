@@ -3,6 +3,8 @@
 <resources>
     <color name="window_light">#FFF7F5F0</color>
     <color name="window_dark">#FF141414</color>
+    <!-- 跟著系統深淺的視窗底色（深色的在 values-night/colors.xml），系統啟動畫面用 -->
+    <color name="window">@color/window_light</color>
     <color name="ic_launcher_background">#FF1F3A5F</color>
     <color name="ic_terminal">#FF0E1A2B</color>
     <color name="ic_prompt">#FF7FD1AE</color>

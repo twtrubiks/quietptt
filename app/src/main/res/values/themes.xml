@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.QuietPtt" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Base.Theme.QuietPtt" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_light</item>
     </style>
+
+    <!-- Android 12 起多了系統啟動畫面的設定：values-v31/themes.xml -->
+    <style name="Theme.QuietPtt" parent="Base.Theme.QuietPtt" />
 </resources>

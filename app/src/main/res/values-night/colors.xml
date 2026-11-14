@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色模式的視窗底色（系統啟動畫面用）；淺色的在 values/colors.xml -->
+<resources>
+    <color name="window">@color/window_dark</color>
+</resources>

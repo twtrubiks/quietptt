@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 起的系統啟動畫面：底色跟視窗一樣（@color/window，跟著系統的深淺），中間是 App 圖示的圓底與還沒有提示符號的空終端。
+  自動登入時接著的連線畫面（ConnectingScreen）在同一個位置、用同樣的大小畫同一個圖示，「>_」再一格一格拼出來，看起來就是終端醒過來。
+  圖示：240dp 的圖、直徑 160dp 的圓底（圖示座標 108 裡的 72），ConnectingScreen 照這個尺寸畫
+-->
+<resources>
+    <style name="Theme.QuietPtt" parent="Base.Theme.QuietPtt">
+        <item name="android:windowSplashScreenBackground">@color/window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_terminal</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+    </style>
+</resources>
