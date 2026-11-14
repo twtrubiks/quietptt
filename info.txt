@@ -1,0 +1,5 @@
+branch: feat/default-signature
+commit: f849c0840f0eb2322c9c257ad8e8e487a8acaf0e
+api level: 28
+run: https://github.com/twtrubiks/quietptt/actions/runs/43582104744
+job status: success

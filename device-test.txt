@@ -1,0 +1,8 @@
+
+com.twtrubiks.quietptt.DeviceTest:.........
+
+Time: 0.728
+
+OK (9 tests)
+
+
