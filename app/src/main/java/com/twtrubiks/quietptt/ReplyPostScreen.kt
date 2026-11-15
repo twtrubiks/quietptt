@@ -74,7 +74,8 @@ fun ReplyPostScreen(
         mutableStateOf(container.bodyTemplate.value.let { TextFieldValue(it, TextRange(it.length)) })
     }
     val body = bodyField.text
-    var signature by rememberSaveable { mutableStateOf("0") }
+    // 先選好設定的「預設簽名檔」，這次要換再點按鈕
+    var signature by rememberSaveable { mutableStateOf(defaultSignature(container.defaultSignature.value)) }
     var quote by rememberSaveable { mutableStateOf(true) }
     var signatureOpen by rememberSaveable { mutableStateOf(false) }
     var confirmOpen by rememberSaveable { mutableStateOf(false) }

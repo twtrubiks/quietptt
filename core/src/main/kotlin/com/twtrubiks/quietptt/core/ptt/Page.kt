@@ -60,6 +60,12 @@ sealed interface Page {
     /** 主選單 `t` Enter 的【休閒聊天區】（查詢網友在這裡，pttbbs `talklist`；照原始碼寫的）。 */
     data class TalkMenu(override val screen: Screen) : Page
 
+    /**
+     * 主選單 `u` Enter 的【個人設定區】，和它裡面「【個人檔案】」那一項的選單（編輯簽名檔在這裡；pttbbs `userlist`、`myfilelist`；照原始碼寫的）。
+     * 兩層都是這個 Page：按左鍵就往主選單退一層，要分哪一層看畫面上有哪些項目。
+     */
+    data class UserMenu(override val screen: Screen) : Page
+
     /** 信箱的列表（第 0 列「【郵件選單】」，pttbbs `mailtitle`）。[cursor] 是游標所在的序號。 */
     data class MailList(override val screen: Screen, val mails: List<MailSummary>, val cursor: Int? = null) : Page
 

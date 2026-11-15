@@ -235,6 +235,16 @@ data class UserInfo(
 )
 
 /**
+ * 自己的一個簽名檔（[Session.signatures]，pttbbs `showsignature` 印在畫面上的）：[number] 是 1～9，[lines] 是內容（最多 6 列，後面的空列去掉了），
+ * [colors] 跟 [lines] 一列對一列，是那列有顏色的幾段。
+ */
+data class SignatureFile(
+    val number: Int,
+    val lines: List<String>,
+    val colors: List<List<ColorSpan>> = lines.map { emptyList() },
+)
+
+/**
  * 文章資訊（文章列表按 `Q`，pttbbs `bbs.c` `view_postinfo`）：[aid] 是文章代碼（不含「#」，8 個字），[url] 是網頁版的網址，
  * [notes] 是框裡其他的列照抄（「這一篇文章值 N Ptt幣」「特殊文章，無價格記錄」「匿名管理編號: …」之類，站方加了也照抄）。
  * 讀不到的是 null。

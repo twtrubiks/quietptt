@@ -59,6 +59,9 @@ class AppContainer(context: Context) {
     /** 發文頁、回文頁打開時先帶進內文欄位的字（設定頁打的；預設空的，不帶）。 */
     val bodyTemplate = StringSetting(settings, "body_template")
 
+    /** 發文頁、回文頁打開時先選好的簽名檔（[SIGNATURES] 裡的一個：`0` 不加、`1`～`9`、`x` 隨機；預設 `0`）。寫信不看這個。 */
+    val defaultSignature = StringSetting(settings, "default_signature", "0")
+
     /** 帳號與加密過的密碼，另一份 SharedPreferences（不備份、不隨換機傳輸）。 */
     val credentials = Credentials(context.getSharedPreferences("account", Context.MODE_PRIVATE))
 

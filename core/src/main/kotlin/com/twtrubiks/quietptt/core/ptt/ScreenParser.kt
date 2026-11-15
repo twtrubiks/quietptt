@@ -1,6 +1,7 @@
 package com.twtrubiks.quietptt.core.ptt
 
 import com.twtrubiks.quietptt.core.terminal.Attr
+import com.twtrubiks.quietptt.core.terminal.ColorSpan
 import com.twtrubiks.quietptt.core.terminal.Screen
 
 /**
@@ -59,6 +60,8 @@ object ScreenParser {
             title.startsWith("【私人信件區】") -> Page.MailMenu(screen, noMail = bottom.contains("您沒有來信"))
             // 主選單 t Enter（pttbbs `talklist`，選單的標題是「Talk 【 休閒聊天區 】」裡【】的字；照原始碼寫的）
             title.startsWith("【休閒聊天區】") -> Page.TalkMenu(screen)
+            // 主選單 u Enter（pttbbs `userlist`：「User 【 個人設定區 】」）與裡面的「My Files 【個人檔案】」（`myfilelist`）；照原始碼寫的
+            title.startsWith("【個人設定區】") || title.startsWith("【個人檔案】") -> Page.UserMenu(screen)
             // 寄信、回信（pttbbs `mail.c` 的 `vs_hdr`：「【站內寄信】」「【回  信】」「【群組信件】」；照原始碼寫的）
             title.startsWith("【站內寄信】") || title.startsWith("【回信】") || title.startsWith("【群組信件】") -> mailForm(screen)
             // 信箱的列表（pttbbs `mailtitle`，真機）
@@ -85,13 +88,51 @@ object ScreenParser {
     }
 
     /**
+     * 編輯簽名檔的畫面上印出來的簽名檔（pttbbs `user.c` `showsignature`，照原始碼寫的）：第 2 列起，每個簽名檔先一列「【 簽名檔.N 】」
+     * （N 是 1～9，一個比一個大），下面是內容，最多 6 列（`MAX_SIGLINES`），到下一個「【 簽名檔.」或畫面最下面為止。
+     * 內容後面的空列去掉（畫面上分不出是簽名檔自己的空列還是沒印東西）；列尾的空白也去掉，有底色的留著。
+     * 最後一個可能被畫面截掉（列數不夠就不印了）。
+     */
+    fun signatures(screen: Screen): List<SignatureFile> {
+        val out = ArrayList<SignatureFile>()
+        var number = 0
+        var lines = ArrayList<String>()
+        var colors = ArrayList<List<ColorSpan>>()
+        fun flush() {
+            if (number == 0) return
+            while (lines.isNotEmpty() && lines.last().isBlank()) {
+                lines.removeAt(lines.lastIndex)
+                colors.removeAt(colors.lastIndex)
+            }
+            out += SignatureFile(number, lines, colors)
+        }
+        for (row in SIGNATURE_FIRST_ROW until screen.rows) {
+            val line = screen.lines[row]
+            val header = SIGNATURE_HEADER.matchEntire(line)?.groupValues?.get(1)?.toInt()
+            if (header != null && header > number) {
+                flush()
+                number = header
+                lines = ArrayList()
+                colors = ArrayList()
+            } else if (number != 0) {
+                val spans = screen.spans(row)
+                val keep = maxOf(line.trimEnd().length, spans.filter { it.bg != 0 }.maxOfOrNull { it.end } ?: 0)
+                lines += line.take(keep)
+                colors += spans.filter { it.start < keep }
+            }
+        }
+        flush()
+        return out
+    }
+
+    /**
      * 標題列有沒有寫「你有新信件」（pttbbs `menu.c` 的 `redraw_title`：`ISNEWMAIL` 時把中間那格的字換成紅底閃爍的「你有新信件」，照原始碼寫的）。
      * 中間那格平常是「批踢踢實業坊」，文章列表是板的中文名稱；左邊的【】、右邊的「看板《》」不變，[parse] 照樣認得出是哪一頁。
-     * 只有第 0 列是標題列的頁回 true／false：主選單、看板列表、分類看板、私人信件區、休閒聊天區、信箱、文章列表。
+     * 只有第 0 列是標題列的頁回 true／false：主選單、看板列表、分類看板、私人信件區、休閒聊天區、個人設定區、信箱、文章列表。
      * 其他頁（文章內文、提示、編輯器、認不出來的）第 0 列不是標題列，回 null（看不出來）。
      */
     fun newMail(page: Page): Boolean? = when (page) {
-        is Page.MainMenu, is Page.Favorites, is Page.ClassRoot, is Page.MailMenu, is Page.TalkMenu, is Page.MailList, is Page.ArticleList ->
+        is Page.MainMenu, is Page.Favorites, is Page.ClassRoot, is Page.MailMenu, is Page.TalkMenu, is Page.UserMenu, is Page.MailList, is Page.ArticleList ->
             page.screen.lines.first().contains("你有新信件")
         else -> null
     }
@@ -545,6 +586,12 @@ object ScreenParser {
     private val WEB_URL = Regex("""https?://[^\s│]+""")
 
     // 文章列表第 2 列（欄位標題）右邊的「人氣:179」（pttbbs `readtitle` 的 `col_header_right`）
+    /** 編輯簽名檔的畫面從第 2 列起印簽名檔（第 0 列是問句，`showsignature` 的 `move(2, 0)`）。 */
+    private const val SIGNATURE_FIRST_ROW = 2
+
+    /** 一個簽名檔的開頭那列「【 簽名檔.3 】」（`showsignature`）。 */
+    private val SIGNATURE_HEADER = Regex("""【 簽名檔\.([1-9]) 】\s*""")
+
     private val ONLINE = Regex("""人氣:(\d+)""")
 
     // 日期欄：「11/07」「7/18」（前面的空白 trim 掉了）

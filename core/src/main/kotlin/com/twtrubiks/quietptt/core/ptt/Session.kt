@@ -662,7 +662,7 @@ class Session(
                 is Page.BoardNamePrompt -> press(Keys.BACKSPACE.repeat(p.typed.length) + Keys.ENTER, p) { it !is Page.BoardNamePrompt }
                 is Page.BoardKeywordPrompt -> press(Keys.ENTER, p) { it !is Page.BoardKeywordPrompt }
                 is Page.PressAnyKey -> press(Keys.ENTER, p) { it !is Page.Unknown }
-                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.MailList, is Page.TalkMenu ->
+                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.MailList, is Page.TalkMenu, is Page.UserMenu ->
                     press(Keys.LEFT, p) { it !is Page.Unknown }
                 else -> throw UnexpectedScreenException("認不出現在的畫面，走不到私人信件區", p.screen)
             }
@@ -680,7 +680,7 @@ class Session(
                 is Page.BoardNamePrompt -> press(Keys.BACKSPACE.repeat(p.typed.length) + Keys.ENTER, p) { it !is Page.BoardNamePrompt }
                 is Page.BoardKeywordPrompt -> press(Keys.ENTER, p) { it !is Page.BoardKeywordPrompt }
                 is Page.PressAnyKey -> press(Keys.ENTER, p) { it !is Page.Unknown }
-                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.MailMenu, is Page.MailList, is Page.TalkMenu ->
+                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.MailMenu, is Page.MailList, is Page.TalkMenu, is Page.UserMenu ->
                     press(Keys.LEFT, p) { it !is Page.Unknown }
                 else -> throw UnexpectedScreenException("認不出現在的畫面，走不到分類看板", p.screen)
             }
@@ -710,7 +710,7 @@ class Session(
                 is Page.BoardNamePrompt -> press(Keys.BACKSPACE.repeat(p.typed.length) + Keys.ENTER, p) { it !is Page.BoardNamePrompt }
                 is Page.BoardKeywordPrompt -> press(Keys.ENTER, p) { it !is Page.BoardKeywordPrompt }
                 is Page.PressAnyKey -> press(Keys.ENTER, p) { it !is Page.Unknown }
-                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.TalkMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
+                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.TalkMenu, is Page.UserMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
                 else -> throw UnexpectedScreenException("認不出現在的畫面，走不到信箱", p.screen)
             }
         }
@@ -1589,7 +1589,7 @@ class Session(
                 is Page.ArticleList, is Page.ArticleView -> press(Keys.LEFT, p) { it !is Page.Unknown }
                 is Page.PressAnyKey -> press(Keys.ENTER, p) { it !is Page.Unknown }
                 // 分組討論區、信箱：左鍵一層一層退回主選單
-                is Page.ClassRoot, is Page.MailMenu, is Page.MailList, is Page.TalkMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
+                is Page.ClassRoot, is Page.MailMenu, is Page.MailList, is Page.TalkMenu, is Page.UserMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
                 // 認不出來的畫面不知道按了會怎樣：交給使用者在終端畫面處理
                 else -> throw UnexpectedScreenException("認不出現在的畫面，走不到我的最愛", p.screen)
             }
@@ -1677,7 +1677,7 @@ class Session(
                     press(Keys.ENTER, p) { it !is Page.Unknown }
                 }
                 // 信箱、休閒聊天區：左鍵退回主選單，下一輪用主選單的 s
-                is Page.MailMenu, is Page.MailList, is Page.TalkMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
+                is Page.MailMenu, is Page.MailList, is Page.TalkMenu, is Page.UserMenu -> press(Keys.LEFT, p) { it !is Page.Unknown }
                 else -> throw UnexpectedScreenException("認不出現在的畫面，進不了 $name", p.screen)
             }
         }
@@ -1803,7 +1803,47 @@ class Session(
         return UserInfo(id, nickname, fields.filter { it !== idField }, plan)
     }
 
-    /** 走到主選單：看板、文章、我的最愛、分類、信箱、休閒聊天區按左鍵一層一層退出來。 */
+    /**
+     * 讀自己的簽名檔（App 設定頁「預設簽名檔」的預覽）：走到主選單，`u` Enter 進【個人設定區】，游標移到「【個人檔案】」那項 Enter，
+     * 再移到「編輯簽名檔」那項 Enter（pttbbs `u_editsig`）：PTT 清掉畫面，第 2 列起印每一個簽名檔（`showsignature`：
+     * 一列青色的「【 簽名檔.N 】」，下面最多 6 列內容），第 0 列問「簽名檔 (E)編輯 (D)刪除 (Q)取消？[Q] 」。
+     * 一頁放不下時問句多一個「(N)翻頁」：答 n 換下一批，翻過最後一批會繞回第一批，看到沒有更後面的號碼就停。
+     * 讀完答 Enter（預設 Q，取消）、左鍵兩次退回主選單。**只答 n 與 Enter**：e 是編輯、d 是刪除，不碰。
+     * 一個簽名檔都沒有回空的。照號碼排。
+     */
+    suspend fun signatures(): List<SignatureFile> = navigate {
+        val main = goToMainMenu()
+        val user = press("u" + Keys.ENTER, main) { it is Page.UserMenu || it.hasMenuItem(MY_FILES_ITEM) }
+        val files = pressMenuItem(user, "個人設定區", MY_FILES_ITEM) { it.hasMenuItem(EDIT_SIGNATURE_ITEM) }
+        var page = pressMenuItem(files, "個人檔案", EDIT_SIGNATURE_ITEM, ::isSignatureList)
+        val found = sortedMapOf<Int, SignatureFile>()
+        for (turn in 0 until MAX_SIGNATURE_PAGES) {
+            val seen = found.keys.maxOrNull() ?: 0
+            val shown = ScreenParser.signatures(page.screen)
+            // 上一批最後一個可能只印了一半、這一批重印一次完整的：留列數多的
+            for (file in shown) if (file.lines.size >= (found[file.number]?.lines?.size ?: 0)) found[file.number] = file
+            // 這一批沒有更後面的號碼：全部看過了（已經繞回第一批）
+            if (turn > 0 && shown.none { it.number > seen }) break
+            if (!page.screen.lines.first().contains("(N)翻頁")) break
+            page = press("n" + Keys.ENTER, page, ::isSignatureList)
+        }
+        val back = press(Keys.ENTER, page) { it.hasMenuItem(EDIT_SIGNATURE_ITEM) }
+        val up = press(Keys.LEFT, back) { it is Page.MainMenu || (it !is Page.Unknown && !it.hasMenuItem(EDIT_SIGNATURE_ITEM)) }
+        if (up !is Page.MainMenu) press(Keys.LEFT, up) { it is Page.MainMenu }
+        found.values.toList()
+    }
+
+    /** 選單上有一項的字裡有 [item]（「(M)y Files 【個人檔案】」「(S)ignature 編輯簽名檔」）；標題列不算。 */
+    private fun Page.hasMenuItem(item: String): Boolean = screen.lines.drop(1).any { it.contains(item) && MENU_ITEM.containsMatchIn(it) }
+
+    /**
+     * 編輯簽名檔的畫面在等答案：第 0 列是「簽名檔 (E)編輯 (D)刪除 …？[Q]」，後面還沒有打字
+     * （答 n 換下一批時，字先印在問句後面、之後才整個重畫：列尾不是「[Q]」的是重畫之前的畫面）。
+     */
+    private fun isSignatureList(page: Page): Boolean =
+        page.screen.lines.first().let { it.startsWith("簽名檔 (E)編輯") && it.trimEnd().endsWith("[Q]") }
+
+    /** 走到主選單：看板、文章、我的最愛、分類、信箱、休閒聊天區、個人設定區按左鍵一層一層退出來。 */
     private suspend fun goToMainMenu(): Page.MainMenu {
         var page = awaitQuiet()
         repeat(MAX_STEPS + 2) {
@@ -1813,7 +1853,7 @@ class Session(
                 is Page.BoardKeywordPrompt -> press(Keys.ENTER, p) { it !is Page.BoardKeywordPrompt }
                 is Page.MoveFavoritePrompt -> press(Keys.ENTER, p) { it !is Page.MoveFavoritePrompt }
                 is Page.PressAnyKey -> press(Keys.ENTER, p) { it !is Page.Unknown }
-                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.MailMenu, is Page.MailList, is Page.TalkMenu ->
+                is Page.Favorites, is Page.ArticleList, is Page.ArticleView, is Page.ClassRoot, is Page.MailMenu, is Page.MailList, is Page.TalkMenu, is Page.UserMenu ->
                     press(Keys.LEFT, p) { it !is Page.Unknown }
                 else -> throw UnexpectedScreenException("認不出現在的畫面，走不到主選單", p.screen)
             }
@@ -1880,6 +1920,18 @@ class Session(
 
         /** 文章一頁（第 2 頁起）有幾行：23 列全是文章（「第 22~44 行」）；PgDn 從一頁的最後一行接下去。 */
         const val PAGE_LINES = 22
+
+        /** 【個人設定區】裡放名片檔、簽名檔的那一項（pttbbs `userlist`：「My Files 【個人檔案】 (名片,簽名檔...)」）。 */
+        private const val MY_FILES_ITEM = "【個人檔案】"
+
+        /** 【個人檔案】裡的那一項（pttbbs `myfilelist`：「Signature 編輯簽名檔」）。 */
+        private const val EDIT_SIGNATURE_ITEM = "編輯簽名檔"
+
+        /** 簽名檔最多 9 個、一批至少印一個：翻 9 次一定看完。 */
+        const val MAX_SIGNATURE_PAGES = 9
+
+        /** 選單的一項：「(S)ignature」（前面可能有游標）。 */
+        private val MENU_ITEM = Regex("""^\s*(>|●)?\s*\([A-Za-z0-9]\)""")
 
         /** 選單的游標：「> (C)lass」或「●(C)lass」（主選單真機是「>」）。 */
         private val MENU_CURSOR = Regex("""^\s*(>|●)\s*\(""")
