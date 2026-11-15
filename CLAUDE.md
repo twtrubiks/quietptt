@@ -26,7 +26,7 @@ VM 走 WebSocket 連得到真的 PTT（SSH 的 22 埠被擋），真的畫面用
   工具列推文、回文（只回到看板）、到底、檢查新推文、分享；「⋮」查詢作者資料、文章資訊、同作者／同標題文章、寄信給作者、複製全文、文章字級；自己的文章可編輯、改標題、刪除（編輯時可以改本文、在任一則推文下面插回應）
 - 搜尋看板（英文找板名、中文找標題）、加入我的最愛（看板「⋮」、搜尋結果、即時熱門）、查詢網友
 - 終端畫面：認不出來的畫面都退到這裡，有兩排軟鍵（含 Ctrl）、打字框
-- 設定：連線方式（SSH／WebSocket）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、沒選分類時提醒、預設內文、預設簽名檔（可預覽 PTT 上的簽名檔）、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
+- 設定：連線方式（SSH／WebSocket）、背景多久後斷線（2／5／10 分鐘）、深色模式、文章字級、滑動回上一頁的方向、記住密碼、自動登入、重複登入、文末加「Sent from QuietPTT」、沒選分類時提醒、預設內文、預設簽名檔（可預覽 PTT 上的簽名檔）、清除搜尋紀錄、登出、忘記帳號、關於（版本、GitHub 網址）
 - 系統返回鍵、橫著滑回上一頁（方向可設）
 
 ### 還沒做
@@ -85,7 +85,7 @@ core（純 Kotlin，沒有 Android）
   收資料、解析、等畫面都在 `Dispatchers.Default`，**不在主執行緒**
 - App 端每一頁用 `rememberNavigation` 在進來時叫上面那幾個；往回走只 pop stack，由回到的那一頁自己按左鍵退回去。
   `AppContainer.scope` 沒有例外處理器，裡面 `launch` 的東西例外一定要接住（丟出去就閃退）
-- `Connection`（app）：一次只有一條 `Session`。**App 退到背景超過 2 分鐘就斷線**（`ProcessLifecycleOwner`；背景期間或剛回來 15 秒內
+- `Connection`（app）：一次只有一條 `Session`。**App 退到背景超過 2 分鐘就斷線**（設定可以改成 5、10 分鐘；`ProcessLifecycleOwner`；背景期間或剛回來 15 秒內
   socket 自己死掉也算），回前景時若是因此斷的、又記得密碼就自動重登，**頁面留在原地**（`Online.resumed`，stack 不清）；手動登入才從我的最愛開始。打開 App（process 第一次到前景）時設定的「自動登入」（預設開）開著又記得密碼就直接登入（`loginOnLaunch`）。設定裡「登出」走 `Connection.logout`：取消重登，這次不會自己又登回去
 - `Credentials`：帳號明碼（與上次登入時間）、密碼用 AndroidKeyStore 的 AES-256-GCM 加密，存在 SharedPreferences `account`；
   `allowBackup=false`，`data_extraction_rules.xml` 也排除它。「記住帳號與密碼」預設開，關掉只留帳號
@@ -94,7 +94,7 @@ core（純 Kotlin，沒有 Android）
 
 ## 省電與不吃資源（硬規則）
 
-- 只在前景連線；背景 2 分鐘斷線；沒有 ping、沒有輪詢、沒有查新信
+- 只在前景連線；背景 2 分鐘斷線（設定可以改成 5、10 分鐘，不能更長、不能不斷）；沒有 ping、沒有輪詢、沒有查新信
 - 沒有前景服務、wakelock、WorkManager、BroadcastReceiver、ContentProvider（`CleanManifestTest` 擋）
 - 不要求忽略電池最佳化、不開 `largeHeap`
 - 文章裡的圖片不預載、不自動載；按了「開啟圖片」才抓那一張（最多 20 MB、長邊 2048 縮小解碼）；GIF 會動，捲出畫面就停；其他連結點了交給外部瀏覽器

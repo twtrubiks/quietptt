@@ -55,7 +55,7 @@ sealed interface ConnectionState {
  * App 層的連線管理：一次只有一條 [Session]，記錄狀態給畫面看。
  *
  * 省電的規則都在這裡：
- * - 只在前景連線。整個 App 退到背景超過 [BACKGROUND_GRACE_MS] 就斷線（沒有前景服務、wakelock、keep-alive）
+ * - 只在前景連線。整個 App 退到背景超過 [backgroundGraceMs]（設定「背景多久後斷線」，預設 [BACKGROUND_GRACE_MS]）就斷線（沒有前景服務、wakelock、keep-alive）
  * - 在背景期間連線先被系統或 PTT 關掉（關螢幕進 Doze 常常幾分鐘內就死），也算「因為退到背景才斷的」；
  *   回到前景之後 [RESUME_GRACE_MS] 內才發現死掉的（TCP 半開，第一次送鍵才知道）一樣算
  * - 回到前景時，如果是因為退到背景才斷的、而且記得密碼，自動重新登入（[ConnectionState.Online.resumed]，頁面留在原地）；
@@ -74,6 +74,8 @@ class Connection(
     private val autoLogin: () -> Boolean,
     /** 設定裡的「重複登入時刪除其他連線」（PTT 問的時候答 y；關掉答 n）。 */
     private val kickOtherLogins: () -> Boolean,
+    /** 設定裡的「背景多久後斷線」（毫秒）；每次退到背景時讀一次。 */
+    private val backgroundGraceMs: () -> Long = { BACKGROUND_GRACE_MS },
     private val newTransport: () -> Transport,
 ) {
     /**
@@ -286,11 +288,12 @@ class Connection(
                 override fun onStop(owner: LifecycleOwner) {
                     inBackground = true
                     backgroundTimer?.cancel()
+                    val graceMs = backgroundGraceMs()
                     backgroundTimer = scope.launch {
-                        delay(BACKGROUND_GRACE_MS)
+                        delay(graceMs)
                         if (session != null) {
                             droppedInBackground.set(true)
-                            disconnect("退到背景超過 ${BACKGROUND_GRACE_MS / 60_000} 分鐘，已斷線")
+                            disconnect("退到背景超過 ${graceMs / 60_000} 分鐘，已斷線")
                         }
                     }
                 }
@@ -311,7 +314,7 @@ class Connection(
     }
 
     companion object {
-        /** 退到背景多久才主動斷線：2 分鐘。螢幕亮著切去別的 App 看一下再回來，多半在這之內，不用重登 */
+        /** 退到背景多久才主動斷線的預設值：2 分鐘（設定可以改長，[BackgroundGrace]）。螢幕亮著切去別的 App 看一下再回來，多半在這之內，不用重登 */
         const val BACKGROUND_GRACE_MS = 120_000L
 
         /** 回到前景之後這段時間內連線死掉，當成是在背景時就死了（TCP 半開要送鍵才發現） */

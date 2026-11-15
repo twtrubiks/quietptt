@@ -38,6 +38,9 @@ class AppContainer(context: Context) {
     /** 連線方式，預設 SSH；切換後下次連線才生效。 */
     val transport = EnumSetting(settings, "transport", TransportKind.entries, TransportKind.SSH)
 
+    /** 退到背景多久才主動斷線，預設 2 分鐘；每次退到背景時讀，改了下一次就生效。 */
+    val backgroundGrace = EnumSetting(settings, "background_grace", BackgroundGrace.entries, BackgroundGrace.TWO_MINUTES)
+
     /** 滑動退出（回上一頁）的方向，預設由左至右（跟 BePTT 一樣）。 */
     val swipeBack = EnumSetting(settings, "swipe_back", SwipeBackMode.entries, SwipeBackMode.LEFT_TO_RIGHT)
 
@@ -88,6 +91,7 @@ class AppContainer(context: Context) {
         credentials,
         autoLogin = { autoLogin.value },
         kickOtherLogins = { kickOtherLogins.value },
+        backgroundGraceMs = { backgroundGrace.value.ms },
     ) { newTransport() }
 
     fun newTransport(): Transport = when (transport.value) {

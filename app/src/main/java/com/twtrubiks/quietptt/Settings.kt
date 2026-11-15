@@ -32,6 +32,13 @@ enum class TransportKind(val label: String) {
     WEBSOCKET("WebSocket（ws.ptt.cc）"),
 }
 
+/** 退到背景多久才主動斷線（[Connection]）。螢幕關著時系統可能更早把連線弄死，這是「最多留多久」。 */
+enum class BackgroundGrace(val label: String, val ms: Long) {
+    TWO_MINUTES("2 分鐘", 120_000L),
+    FIVE_MINUTES("5 分鐘", 300_000L),
+    TEN_MINUTES("10 分鐘", 600_000L),
+}
+
 /**
  * 使用者的設定，存在 SharedPreferences `settings`（存名字，不存序號）。
  * [value] 是 Compose 的狀態，畫面直接讀。

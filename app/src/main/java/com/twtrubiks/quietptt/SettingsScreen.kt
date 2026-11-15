@@ -91,6 +91,10 @@ fun SettingsScreen(account: String?, session: Session?, onBack: () -> Unit, onLo
                 TransportKind.entries, container.transport.value, { it.label }, container.transport::set,
                 shortLabel = { if (it == TransportKind.SSH) "SSH" else "WebSocket" },
             )
+            ChoiceRow(
+                "背景多久後斷線", "螢幕關閉時系統可能提早斷線；回來會自動重新登入", "background_grace",
+                BackgroundGrace.entries, container.backgroundGrace.value, { it.label }, container.backgroundGrace::set,
+            )
             SwitchRow("記住帳號與密碼", "關掉只記帳號，存著的密碼馬上丟掉", "remember_switch", container.rememberPassword.value) {
                 container.rememberPassword.set(it)
                 // 關掉就馬上把存著的密碼（每一組）丟掉，帳號留著
