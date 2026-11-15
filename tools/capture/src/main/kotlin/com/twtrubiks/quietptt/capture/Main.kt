@@ -242,7 +242,7 @@ private fun readPassword(): String =
 
 /**
  * 等畫面從 [after] 變了、而且 0.5 秒沒再變才印（5 秒都沒變就印現在的），同時記進 screens 檔。
- * 比 App 的 150 ms 久：人在操作不差這一點，印出來的畫面才不會是回顯到一半的。
+ * 比 App 的 80 ms 久：人在操作不差這一點，印出來的畫面才不會是回顯到一半的。
  */
 private suspend fun show(session: Session, recorder: Recorder, label: String, after: Screen?): Page {
     val page = runCatching { session.awaitQuiet(timeoutMs = 5_000, quietMs = 500, after = after) }

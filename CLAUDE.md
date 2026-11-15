@@ -78,7 +78,7 @@ core（純 Kotlin，沒有 Android）
 - `ScreenParser` 全靠文字特徵，**每個判斷旁邊註明認的是哪個字**，改版面會壞是預期中的事：測試用真的畫面 fixture，認不出來回 `Page.Unknown`，
   App 退到 `TerminalScreen`，永遠不會卡死。文章列表、我的最愛照 pttbbs 原始碼的**固定欄位**切（`mbbsd/bbs.c` `readdoent`、`mbbsd/board.c` `brdlist_coldefs`），
   站方改版面時去 github.com/ptt/pttbbs 對欄寬
-- `Session`：一條連線一個，關了就丟掉重開。`awaitPage` 等「符合條件且 150 ms 內沒再變」的畫面（畫面是一段一段送來的）；
+- `Session`：一條連線一個，關了就丟掉重開。`awaitPage` 等「符合條件且 80 ms 內沒再變」的畫面（畫面是一段一段送來的）；
   **送了鍵之後一律帶 `after`**（先等畫面變了），不然網路慢時會拿到按鍵之前的畫面。連線關了丟 `SessionClosedException`，
   等不到丟 `UnexpectedScreenException`（帶當時的畫面）；`login` 不丟例外，全部變成 `LoginResult`。
   `showFavorites`／`showBoard`／`openArticle` 從現在的畫面走過去（已經在就不按鍵），一次只跑一個（mutex）。

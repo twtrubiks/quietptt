@@ -1873,7 +1873,7 @@ class Session(
         const val LOGIN_TIMEOUT_MS = 45_000L
 
         /** 畫面幾毫秒沒變就當它畫完了。 */
-        const val QUIET_MS = 150L
+        const val QUIET_MS = 80L
 
         /** 發文打內文時等編輯器畫完：內文長的話回應分好幾段來，安靜久一點才算。 */
         const val BODY_QUIET_MS = 600L
