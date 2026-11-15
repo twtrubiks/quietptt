@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 /**
  * 發文頁（BePTT 的「發表文章」`activity_send_artical`）：「選擇分類」按鈕、標題、說明「分類不會顯示在標題欄，送出時會自動加在標題前」、
  * 簽名檔按鈕（不使用／簽名檔 1～9／隨機）、內文；右上角「發文」先問「確定要發表文章?」（標題與內文前 60 字）再送。
+ * 沒選分類（[missingCategory]）而設定的「沒選分類時提醒」開著：確認框最上面一行紅字「還沒選分類」，按鈕是「選擇分類」「仍然發文」。
  *
  * 一進來叫 [Session.postOptions]：在列表按 Ctrl-P 讀出這個板的分類（PTT 列的「種類」），再取消掉；不能發文的板在這裡就會知道原因。
  * 送出用 [Session.post]，走 App 的 scope（離開這一頁也要把 PTT 那邊的流程走完，不能留在編輯器裡），送的時候不給返回。
@@ -279,18 +280,39 @@ fun PostScreen(session: Session, board: String, onDone: () -> Unit, onTerminal: 
         )
     }
     if (confirmOpen) {
+        // 這個板有分類可以選才提醒
+        val remind = container.remindCategory.value && categories.isNotEmpty() && missingCategory(categoryName, title)
         AlertDialog(
             onDismissRequest = { confirmOpen = false },
             title = { Text("確定要發表文章?") },
-            text = { Text(postSummary(categoryName, title.trim(), body)) },
+            text = {
+                Column {
+                    if (remind) {
+                        Text("還沒選分類", color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("category_reminder"))
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text(postSummary(categoryName, title.trim(), body))
+                }
+            },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmOpen = false
-                        send()
-                    },
-                    modifier = Modifier.testTag("confirm_send"),
-                ) { Text("發文") }
+                Row {
+                    if (remind) {
+                        TextButton(
+                            onClick = {
+                                confirmOpen = false
+                                categoryOpen = true
+                            },
+                            modifier = Modifier.testTag("confirm_pick_category"),
+                        ) { Text("選擇分類") }
+                    }
+                    TextButton(
+                        onClick = {
+                            confirmOpen = false
+                            send()
+                        },
+                        modifier = Modifier.testTag("confirm_send"),
+                    ) { Text(if (remind) "仍然發文" else "發文") }
+                }
             },
             dismissButton = { TextButton(onClick = { confirmOpen = false }) { Text("取消") } },
         )
@@ -363,6 +385,15 @@ fun titleProblem(title: String, category: String?): String? {
 }
 
 const val TITLE_BYTES = 48
+
+/**
+ * 發文沒帶分類：沒選（[category] 是 null），標題開頭也不是自己打的「[分類]」（有人習慣直接打在標題裡）。
+ * 只看有沒有方括號，不比對是不是這個板的分類（PTT 列的分類名最多 2 個中文字，比不準）。
+ */
+fun missingCategory(category: String?, title: String): Boolean = category == null && !TYPED_CATEGORY.containsMatchIn(title.trimStart())
+
+/** 標題開頭的「[分類]」，半形或全形方括號。 */
+private val TYPED_CATEGORY = Regex("""^[\[［][^\]］]+[\]］]""")
 
 /** 確認對話框的內容（BePTT：標題、內文前 60 字）。 */
 fun postSummary(category: String?, title: String, body: String): String {

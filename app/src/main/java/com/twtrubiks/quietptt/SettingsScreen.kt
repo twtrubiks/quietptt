@@ -107,6 +107,10 @@ fun SettingsScreen(account: String?, session: Session?, onBack: () -> Unit, onLo
                 "文末加上「Sent from QuietPTT」", "發文、回文時加在內文最後面；發文頁也能勾",
                 "sent_from_switch", container.sentFrom.value, container.sentFrom::set,
             )
+            SwitchRow(
+                "沒選分類時提醒", "發文時沒選分類、標題開頭也沒有自己打「[分類]」，送出前的確認框會提醒",
+                "remind_category_switch", container.remindCategory.value, container.remindCategory::set,
+            )
             val template = container.bodyTemplate.value
             SettingRow(
                 "預設內文",

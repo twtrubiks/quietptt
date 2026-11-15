@@ -56,6 +56,9 @@ class AppContainer(context: Context) {
     /** 發文、回文的文末加上 [SENT_FROM]（預設開）：發文頁、回文頁的勾選框與設定頁的開關是同一個。 */
     val sentFrom = BoolSetting(settings, "sent_from", true)
 
+    /** 發文時沒選分類（[missingCategory]）就在確認框提醒（預設開）。只有發文頁看；回文、改標題不看。 */
+    val remindCategory = BoolSetting(settings, "remind_category", true)
+
     /** 發文頁、回文頁打開時先帶進內文欄位的字（設定頁打的；預設空的，不帶）。 */
     val bodyTemplate = StringSetting(settings, "body_template")
 
