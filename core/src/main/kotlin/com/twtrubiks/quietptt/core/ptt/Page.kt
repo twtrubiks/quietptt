@@ -134,7 +134,7 @@ sealed interface Page {
     /** 推文內容的輸入框：最下面一列「推 代號:」（[type] 是推／噓／→）。作者本人或推太快時跳過上一個提示直接到這裡。 */
     data class CommentPrompt(override val screen: Screen, val type: PushType) : Page
 
-    /** 文章列表按 `d` 之後第 1 列的「請確定刪除(Y/N)?[N] 」。 */
+    /** 文章列表按 `d` 之後的「請確定刪除(Y/N)?[N] 」：整個畫面的表單第 4 列，或疊在列表上的第 1 列。 */
     data class DeletePrompt(override val screen: Screen) : Page
 
     /** 文章列表按 `T` 之後第 22 列的「標題：目前的標題」（pttbbs `edit_title`）；[current] 是框裡現在的字。 */

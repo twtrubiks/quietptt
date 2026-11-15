@@ -319,9 +319,16 @@ object ScreenParser {
         return Page.MailForm(screen, step)
     }
 
-    /** 文章列表按 `d`：第 1 列「請確定刪除(Y/N)?[N] 」（pttbbs `del_post`、`MSG_DEL_NY`）。 */
-    private fun deletePrompt(screen: Screen): Page? =
-        if (screen.lines[1].trimStart().startsWith("請確定刪除")) Page.DeletePrompt(screen) else null
+    /**
+     * 文章列表按 `d`：「請確定刪除(Y/N)?[N] 」（pttbbs `del_post`、`MSG_DEL_NY`）。
+     * 兩種問法都認。整個畫面清掉再問的表單（「Ask in a full screen form, below the post to delete」）：第 0 列「刪除文章」（`modlog_form`）、
+     * 第 2 列是要刪的那篇（`show_post_line`）、問題在第 4 列（真機）；或疊在列表上、第 1 列問
+     */
+    private fun deletePrompt(screen: Screen): Page? {
+        val overList = screen.lines[1].trimStart().startsWith("請確定刪除")
+        val form = screen.lines[0].trim().startsWith("刪除文章") && screen.lines[4].trimStart().startsWith("請確定刪除")
+        return if (overList || form) Page.DeletePrompt(screen) else null
+    }
 
     /** 文章列表按 `T`：第 22 列「標題：」後面預填目前的標題（pttbbs `edit_title`，`getdata_buf`）。 */
     private fun titlePrompt(screen: Screen): Page? {

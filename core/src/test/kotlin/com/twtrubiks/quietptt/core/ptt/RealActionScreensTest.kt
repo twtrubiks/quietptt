@@ -1,5 +1,6 @@
 package com.twtrubiks.quietptt.core.ptt
 
+import com.twtrubiks.quietptt.core.terminal.Screen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +45,22 @@ class RealActionScreensTest {
         val deleted = ScreenParser.parse(Fixtures.screen("delete-notice"))
         assertTrue("$deleted", deleted is Page.PressAnyKey)
         assertTrue(deleted.screen.lines[14].startsWith("正在刪除文章"))
+    }
+
+    @Test
+    fun deletingAsksInAFullScreenForm() {
+        // 整個畫面的表單（pttbbs `del_post`：「Ask in a full screen form, below the post to delete」）：按 d 整個畫面清掉，
+        // 第 0 列「刪除文章  Test」、第 2 列要刪的那篇、第 4 列「請確定刪除(Y/N)?[N]」。`--e2e-write` 刪自己回的那篇時存的
+        val form = Fixtures.screen("delete-form")
+        assertTrue(form.lines[4].startsWith("請確定刪除"))
+        assertTrue("${ScreenParser.parse(form)}", ScreenParser.parse(form) is Page.DeletePrompt)
+        // 答 y：同一張表單，問題那列（第 4 列）換成「已刪除文章。」、最下面任意鍵
+        val done = ScreenParser.parse(Fixtures.screen("delete-form-done"))
+        assertTrue("$done", done is Page.PressAnyKey)
+        assertEquals("已刪除文章。", done.screen.lines[4].trim())
+        // 要刪的那篇的標題裡有「請確定刪除」也不會認錯：只看第 0 列與第 4 列
+        val titled = Screen.of(Fixtures.text("delete-form").lines().mapIndexed { i, line -> if (i == 4) "" else if (i == 2) "$line 請確定刪除" else line }.joinToString("\n"))
+        assertFalse(ScreenParser.parse(titled) is Page.DeletePrompt)
     }
 
     @Test

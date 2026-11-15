@@ -400,6 +400,16 @@ class ActionsTest {
     }
 
     @Test
+    fun deleteInTheFullScreenForm() = runBlocking {
+        // 真機（整個畫面的表單）：按 d 整個畫面清掉、第 4 列問；答 y 之後那列換成「已刪除文章。」、任意鍵，按掉回到列表
+        val ptt = bbs(LIST, deleteForm = true)
+        val session = connect(ptt)
+        val list = withTimeout(TEST_TIMEOUT_MS) { session.deleteArticle("MobileComm", 153897) }
+        assertTrue(list.articles.first { it.index == 153897 }.deleted)
+        assertEquals(listOf("153897\r", "d", "y\r", "\r"), ptt.received)
+    }
+
+    @Test
     fun deleteWithNoReactionFailsQuickly() = runBlocking {
         // 不是自己的文章：PTT 一個字都不回
         val ptt = bbs(LIST, mine = false)
@@ -603,6 +613,7 @@ class ActionsTest {
         canPush: Boolean = true,
         mine: Boolean = true,
         deleteNotice: Boolean = false,
+        deleteForm: Boolean = false,
         file: List<String> = EDITOR_FILE,
         aidGone: Boolean = false,
     ): FakePtt {
@@ -681,7 +692,10 @@ class ActionsTest {
                 // 文章頁「⋮」的「查詢文章資訊」：左鍵退回列表（游標停在剛剛那篇 153909），之後 Enter 再打開
                 at == ARTICLE && input == Keys.LEFT -> LIST
                 at == LIST && input == "\r" + Keys.CTRL_L -> ARTICLE
-                at == LIST_ON_153897 && input == "d" -> replaceRow(LIST_ON_153897, 1, "請確定刪除(Y/N)?[N] ")
+                at == LIST_ON_153897 && input == "d" -> if (deleteForm) DELETE_FORM else replaceRow(LIST_ON_153897, 1, "請確定刪除(Y/N)?[N] ")
+                // 真機：整個畫面的表單，答 y 之後同一張表單印「已刪除文章。」、任意鍵
+                at == DELETE_FORM && input == "y\r" -> DELETE_FORM_DONE
+                at == DELETE_FORM_DONE && input == "\r" -> LIST_DELETED
                 // 真機：刪掉之後列表上疊一個「請按任意鍵繼續」（列表沒清掉）
                 at.startsWith(LIST_HEADER) && at.lines()[1].startsWith("請確定刪除") && input == "y\r" ->
                     if (deleteNotice) DELETED_NOTICE else LIST_DELETED
@@ -814,6 +828,8 @@ class ActionsTest {
         val LIST_ON_153897 = LIST.replace(">153909", " 153909").replace(" 153897", ">153897")
         val LIST_DELETED = replaceRow(LIST_ON_153897, 8, Fixtures.articleRow(153897, push = "34", mark = '+', date = "11/06", author = "-", title = "(本文已被刪除) [chanifa]", cursor = ">"))
         val DELETE_PROMPT = replaceRow(LIST, 1, "請確定刪除(Y/N)?[N] ")
+        val DELETE_FORM = Fixtures.text("delete-form")
+        val DELETE_FORM_DONE = Fixtures.text("delete-form-done")
         val DELETED_NOTICE = replaceRow(
             replaceRow(replaceRow(LIST_DELETED, 1, "請確定刪除(Y/N)?[N] y"), 14, "正在刪除文章: [討論] s24u 綠線案例"),
             23,
