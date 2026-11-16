@@ -35,6 +35,9 @@ class AppContainer(context: Context) {
     /** 文章與信的字級（文章頁「⋮」或設定裡改），預設標準（跟著系統的字體大小）。 */
     val articleTextSize = EnumSetting(settings, "article_text_size", ArticleTextSize.entries, ArticleTextSize.NORMAL)
 
+    /** 文章列表每列的日期後面顯示「#序號」（預設開）：看板與搜尋結果的列表。 */
+    val showArticleIndex = BoolSetting(settings, "show_article_index", true)
+
     /** 連線方式，預設 SSH；切換後下次連線才生效。 */
     val transport = EnumSetting(settings, "transport", TransportKind.entries, TransportKind.SSH)
 

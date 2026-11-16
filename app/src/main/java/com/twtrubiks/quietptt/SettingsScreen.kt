@@ -84,6 +84,10 @@ fun SettingsScreen(account: String?, session: Session?, onBack: () -> Unit, onLo
                 "滑動回上一頁", "往這個方向滑過畫面三成，或快速一甩", "swipe_back",
                 SwipeBackMode.entries, container.swipeBack.value, { it.label }, container.swipeBack::set,
             )
+            SwitchRow(
+                "文章列表顯示序號", "每列日期後面的「#序號」；連著看就知道列表中間有沒有缺",
+                "show_article_index_switch", container.showArticleIndex.value, container.showArticleIndex::set,
+            )
 
             SectionHeader("連線與登入")
             ChoiceRow(

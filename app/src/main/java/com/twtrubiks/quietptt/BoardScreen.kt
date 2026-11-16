@@ -141,6 +141,7 @@ fun BoardScreen(
 ) {
     // 再進同一個板先列上次的（只在記憶體，[BoardLists]）；PTT 走到最新那頁之後併進來或整份換掉（[fromCache] 那段）
     val boardLists = LocalContext.current.container.boardLists
+    val showIndex = LocalContext.current.container.showArticleIndex.value
     val cached = remember(account, board, search) { if (search == null) boardLists.get(account, board) else null }
     var fromCache by rememberSaveable(board, search) { mutableStateOf(cached != null) }
     var noResults by rememberSaveable(board, search) { mutableStateOf(false) }
@@ -360,6 +361,7 @@ fun BoardScreen(
                                 pinned = row.ref is ArticleRef.Pinned,
                                 onClick = { onOpenArticle(row.ref, row.article) },
                                 actions = rowActions(row),
+                                showIndex = showIndex,
                             )
                         }
                         item(key = "older") {
@@ -721,13 +723,20 @@ fun boardRows(articles: List<ArticleSummary>): List<BoardRow.Article> {
 
 /**
  * 列表上的一篇（BePTT 的 `article_page_list`）：左邊 4dp 的色條（顏色照標記，[markColor]）、一欄分類加推文數（推文數大字、粗體、
- * 顏色照 PTT 的 ANSI 色：[pushColor]）、右邊標題（最多兩行）與下面一行作者、標記、日期。
+ * 顏色照 PTT 的 ANSI 色：[pushColor]）、右邊標題（最多兩行）與下面一行作者、標記、日期、序號。
  * 標題裡的「[問卦]」拿出來放分類那欄、標題不再重複（[titleParts]）。被刪的文章打不開（按 Enter PTT 什麼都不回）：變淡、不能點。
- * [pinned] 的（置底文）作者前面標一個「置底」。長按從下面升起 [actions] 的面板（[ActionSheet]，第一行是標題；有震一下；[actions] 空的就沒有長按）。
+ * [pinned] 的（置底文）作者前面標一個「置底」。[showIndex]：日期後面多一個「#序號」（看板與搜尋結果的列表；置底文沒有序號）。
+ * 長按從下面升起 [actions] 的面板（[ActionSheet]，第一行是標題；有震一下；[actions] 空的就沒有長按）。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ArticleRow(article: ArticleSummary, onClick: () -> Unit, pinned: Boolean = false, actions: List<MenuItem> = emptyList()) {
+fun ArticleRow(
+    article: ArticleSummary,
+    onClick: () -> Unit,
+    pinned: Boolean = false,
+    actions: List<MenuItem> = emptyList(),
+    showIndex: Boolean = false,
+) {
     val (category, title) = remember(article.title) { titleParts(article.title) }
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val dim = article.deleted
@@ -790,6 +799,17 @@ fun ArticleRow(article: ArticleSummary, onClick: () -> Unit, pinned: Boolean = f
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(article.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 序號接在日期後面、淡一點：連著看就知道列表中間有沒有缺
+                    if (showIndex) article.index?.let {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "#$it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            modifier = Modifier.testTag("article_index"),
+                        )
+                    }
                 }
             }
         }
