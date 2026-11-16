@@ -902,7 +902,10 @@ class Session(
      * [board] 裡序號比 [before] 小的文章（App 往下捲到底載入更舊的）：回傳畫面上看到的那些，至少大半頁（到第 1 篇為止）。
      *
      * 不靠 PgUp 從終端現在停的那頁往前翻：從文章退回來時終端停在那篇所在的頁，不一定是 App 列出來最舊的那頁。
-     * 所以打 `before - 1` Enter 跳到那篇（跳至第幾項），列表會換到有那篇的頁；那篇如果在頁首，只多了一兩篇，再按 PgUp 往前一頁。
+     * 也不直接收終端現在那頁裡序號比 [before] 小的：搜尋結果按左鍵退出來，終端停在結果裡游標那篇所在的頁，可能是很久以前的，
+     * 跟列出來的不相鄰，收下來中間會缺一段。
+     * 所以終端現在那頁沒有 `before - 1` 那篇就打 `before - 1` Enter 跳到那篇（跳至第幾項），列表會換到有那篇的頁
+     * （已經有就不打：跳到原地 PTT 一個字都不回）；那篇如果在頁首，只多了一兩篇，再按 PgUp 往前一頁。
      * 第 1 篇已經在畫面上就不按 PgUp（翻到最前面再往前可能會繞到最後一頁）。
      * 有 [search] 的話是搜尋結果裡更前面的幾筆（序號是結果裡的第幾筆，跳序號、PgUp 在結果裡一樣能用）。
      */
@@ -913,12 +916,13 @@ class Session(
             this is Page.ArticleList && isBoard(board) && filtered == (search != null) && predicate(articles)
 
         var list = goToList(board, search) ?: throw UnexpectedScreenException(NO_RESULTS, _screens.value)
-        collect(list)
-        if (found.isEmpty() && before > 1) {
-            val target = before - 1
+        // 終端現在那頁有 before - 1 那篇才直接用；沒有就跳過去，就算那頁的序號都比 before 小
+        // （搜尋結果按左鍵退出來停在很久以前的頁：直接收下來，跟列出來的中間會缺一段）
+        val target = before - 1
+        if (before > 1 && list.articles.none { it.index == target }) {
             list = press(target.toString() + Keys.ENTER, list) { p -> p.isListOf { it.any { a -> a.index == target } } } as Page.ArticleList
-            collect(list)
         }
+        collect(list)
         val oldest = if (found.isEmpty()) null else found.firstKey()
         if (oldest != null && oldest > 1 && found.size < list.articles.size / 2) {
             list = press(Keys.PAGE_UP, list) { p -> p.isListOf { it.any { a -> (a.index ?: Int.MAX_VALUE) < oldest } } } as Page.ArticleList

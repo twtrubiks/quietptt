@@ -661,12 +661,12 @@ class SessionTest {
     }
 
     /**
-     * 有 [count] 篇的 Stock 板，一頁 [PAGE] 篇，一開始停在最後一頁（游標在最新那篇）。
+     * 有 [count] 篇的 Stock 板，一頁 [PAGE] 篇，一開始游標在第 [at] 篇、那篇在頁尾（預設是最新那篇，也就是最後一頁）。
      * 序號 Enter 跳到那篇，[jumpTop] 決定跳過去之後頁首是哪一篇（真的 PTT 把那篇排在頁面哪裡還沒確認，三種都測）；PgUp 往前一頁。
      */
-    private fun longBoard(count: Int = 65, jumpTop: (Int) -> Int): FakePtt {
-        var top = count - PAGE + 1
-        var cursor = count
+    private fun longBoard(count: Int = 65, at: Int = count, jumpTop: (Int) -> Int): FakePtt {
+        var top = (at - PAGE + 1).coerceIn(1, count - PAGE + 1)
+        var cursor = at
         fun screen(): String {
             val rows = (top until top + PAGE).filter { it in 1..count }.map { n ->
                 Fixtures.articleRow(n, push = " 3", mark = '+', author = "author$n", title = "[標的] 第 $n 篇", cursor = if (n == cursor) ">" else " ")
@@ -721,6 +721,26 @@ class SessionTest {
         val older = withTimeout(TEST_TIMEOUT_MS) { session.olderArticles("Stock", before = 46) }
         assertEquals((26..45).toList(), older.indices())
         assertEquals(listOf("45\r"), ptt.received)
+    }
+
+    @Test
+    fun olderArticlesJumpsEvenWhenTheTerminalIsOnAMuchOlderPage() = runBlocking {
+        // 搜尋結果按左鍵退出來，終端停在很久以前的那頁：整頁都比 before 小，但跟列出來的不相鄰，不能直接收
+        val ptt = longBoard(at = PAGE) { it - 10 }
+        val session = connect(ptt)
+        val older = withTimeout(TEST_TIMEOUT_MS) { session.olderArticles("Stock", before = 46) }
+        assertEquals((35..45).toList(), older.indices())
+        assertEquals(listOf("45\r"), ptt.received)
+    }
+
+    @Test
+    fun olderArticlesUsesThePageOnTheTerminalWhenItHasTheOneBefore() = runBlocking {
+        // 終端現在那頁就有 before - 1 那篇：不打序號（跳到原地 PTT 不回）
+        val ptt = longBoard(at = 50) { it }
+        val session = connect(ptt)
+        val older = withTimeout(TEST_TIMEOUT_MS) { session.olderArticles("Stock", before = 46) }
+        assertEquals((31..45).toList(), older.indices())
+        assertEquals(emptyList<String>(), ptt.received)
     }
 
     @Test
