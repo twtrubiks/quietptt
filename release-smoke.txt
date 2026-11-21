@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.twtrubiks.quietptt/.MainActivity }
+Status: ok
+Activity: com.twtrubiks.quietptt/.MainActivity
+ThisTime: 1450
+TotalTime: 1450
+WaitTime: 1472
+Complete

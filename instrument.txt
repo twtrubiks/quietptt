@@ -1,0 +1,8 @@
+
+com.twtrubiks.quietptt.DemoRecordingTest:.
+
+Time: 15.632
+
+OK (1 test)
+
+
