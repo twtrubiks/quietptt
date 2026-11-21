@@ -26,12 +26,14 @@ sealed interface ConnectionState {
      * [screen] 是登入失敗當時的終端畫面（過載、等太久這種），登入頁可以打開來看。
      * [badPassword]：PTT 說密碼不對或沒這個帳號（登入頁從帳號卡片登入失敗時，換到打密碼的那層）。
      * [tooManyLogins]：重複登入答了「不刪除」、其他連線已經有 3 條，PTT 不給登入（登入頁給「刪除其他連線再登入」，[Connection.retryKickingOthers]）。
+     * [unreachable]：連都連不上（還沒到登入那一步：逾時、被擋、host key 對不上）。登入頁給「改用另一種連線方式再試一次」，[Connection.retryConnecting]。
      */
     data class Offline(
         val reason: String?,
         val screen: Screen? = null,
         val badPassword: Boolean = false,
         val tooManyLogins: Boolean = false,
+        val unreachable: Boolean = false,
     ) : ConnectionState
 
     /**
@@ -105,6 +107,11 @@ class Connection(
      * 下一次登入、登出就清掉。主執行緒（按鈕、登出）與 scope（登入）一起讀寫。
      */
     @Volatile private var blocked: Attempt? = null
+    /**
+     * 連不上的那次登入（[ConnectionState.Offline.unreachable]），給 [retryConnecting] 用；只在記憶體。
+     * 下一次登入、登出就清掉。主執行緒（按鈕、登出）與 scope（登入）一起讀寫。
+     */
+    @Volatile private var unreached: Attempt? = null
     /** 已經跳過「你有新信件」的帳號（[mailAlert]）；只在記憶體，主執行緒讀寫。 */
     private val mailAlerted = mutableSetOf<String>()
 
@@ -150,6 +157,17 @@ class Connection(
     }
 
     /**
+     * 登入頁的「改用另一種連線方式再試一次」：上一次連不上（[ConnectionState.Offline.unreachable]），同一組帳密再登一次
+     * （自動重登的話頁面留在原地）。連線方式由叫的人先改好設定（[newTransport] 每次連線時才讀）。
+     * 是在登入頁按的，所以跟手動登入一樣在登入頁轉圈，不蓋連線畫面。
+     */
+    fun retryConnecting() {
+        val attempt = unreached ?: return
+        unreached = null
+        scope.launch { login(attempt.account, attempt.password, attempt.remember, attempt.resumed) }
+    }
+
+    /**
      * 「你有新信件」要不要跳提醒：[Session.newMail] 每變一次（不是 null）叫一次。PTT 從沒寫變成寫了才回 true；
      * 同一個帳號跳過之後，要等 PTT 不寫了（信都讀過）再寫，才會再跳。
      * 跨連線記著：背景斷線後自動重登、手動重新登入，還是同一批沒讀的信就不再跳；App 重開（換一個 process）第一次登入會跳。
@@ -163,6 +181,7 @@ class Connection(
         val remember = attempt.remember
         val resumed = attempt.resumed
         blocked = null
+        unreached = null
         // 斷掉舊的連線、狀態直接改成連線中：中間不經過 Offline，自動登入的連線畫面不會閃一下登入頁
         drop(ConnectionState.Connecting(account, automatic))
         val session = Session(newTransport(), scope)
@@ -175,7 +194,8 @@ class Connection(
         } catch (e: Exception) {
             session.close()
             val reason = "連不上 PTT：${e.message ?: e::class.simpleName}"
-            _state.value = ConnectionState.Offline(reason)
+            unreached = attempt
+            _state.value = ConnectionState.Offline(reason, unreachable = true)
             return LoginResult.Failed(reason, session.screens.value)
         }
         _state.value = ConnectionState.LoggingIn(account, automatic)
@@ -276,6 +296,7 @@ class Connection(
      */
     fun logout() {
         blocked = null
+        unreached = null
         droppedInBackground.set(false)
         backgroundTimer?.cancel()
         disconnect(null)

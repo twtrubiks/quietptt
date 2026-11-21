@@ -396,6 +396,11 @@ fun QuietPttApp() {
                                 },
                                 onKickOthers = container.connection::retryKickingOthers,
                                 onSettings = { settingsOpen = true },
+                                otherTransport = container.transport.value.other.shortLabel,
+                                onSwitchTransport = {
+                                    container.transport.set(container.transport.value.other)
+                                    container.connection.retryConnecting()
+                                },
                                 startAtList = switching,
                             )
                         }

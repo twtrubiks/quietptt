@@ -93,7 +93,7 @@ fun SettingsScreen(account: String?, session: Session?, onBack: () -> Unit, onLo
             ChoiceRow(
                 "連線方式", "切換後下次連線生效", "transport",
                 TransportKind.entries, container.transport.value, { it.label }, container.transport::set,
-                shortLabel = { if (it == TransportKind.SSH) "SSH" else "WebSocket" },
+                shortLabel = { it.shortLabel },
             )
             ChoiceRow(
                 "背景多久後斷線", "螢幕關閉時系統可能提早斷線；回來會自動重新登入", "background_grace",

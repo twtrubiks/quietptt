@@ -27,9 +27,13 @@ enum class ArticleTextSize(val label: String, val scale: Float) {
     LARGEST("最大", 1.5f),
 }
 
-enum class TransportKind(val label: String) {
-    SSH("SSH（ptt.cc:22）"),
-    WEBSOCKET("WebSocket（ws.ptt.cc）"),
+enum class TransportKind(val label: String, val shortLabel: String) {
+    SSH("SSH（ptt.cc:22）", "SSH"),
+    WEBSOCKET("WebSocket（ws.ptt.cc）", "WebSocket"),
+    ;
+
+    /** 另一種連線方式（登入頁連不上時的「改用…連線再試一次」）。 */
+    val other: TransportKind get() = if (this == SSH) WEBSOCKET else SSH
 }
 
 /** 退到背景多久才主動斷線（[Connection]）。螢幕關著時系統可能更早把連線弄死，這是「最多留多久」。 */

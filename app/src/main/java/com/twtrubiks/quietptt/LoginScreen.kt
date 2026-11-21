@@ -50,6 +50,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.twtrubiks.quietptt.core.terminal.Screen
 import kotlinx.coroutines.flow.drop
@@ -72,6 +73,7 @@ private enum class LoginStep { LAST, LIST, FORM }
  * （[ConnectionState.Offline.badPassword]，例如在別的地方改過密碼）也換到 FORM 重打。左上的 ✕ 與系統返回鍵回上一層。
  * 連線中、登入中顯示進度、什麼都不能按；失敗的原因在 [ConnectionState.Offline.reason]，有當時的畫面（[ConnectionState.Offline.screen]）就給「看當時的畫面」。
  * 重複登入答了「不刪除」、其他連線已經有 3 條被擋下（[ConnectionState.Offline.tooManyLogins]）：多一顆「刪除其他連線再登入」（[onKickOthers]）。
+ * 連不上（[ConnectionState.Offline.unreachable]）：多一顆「改用 [otherTransport] 連線再試一次」（[onSwitchTransport]：把設定換成另一種連線方式、同一組帳密再登一次）。
  */
 @Composable
 fun LoginScreen(
@@ -84,6 +86,8 @@ fun LoginScreen(
     onLogin: (account: String, password: String) -> Unit,
     onKickOthers: () -> Unit,
     onSettings: () -> Unit,
+    otherTransport: String? = null,
+    onSwitchTransport: () -> Unit = {},
     startAtList: Boolean = false,
 ) {
     var step by rememberSaveable { mutableStateOf(if (startAtList) LoginStep.LIST else LoginStep.LAST) }
@@ -269,6 +273,19 @@ fun LoginScreen(
                 Button(onClick = onKickOthers, modifier = Modifier.padding(top = 8.dp).testTag("kick_others_button")) {
                     Text("刪除其他連線再登入")
                 }
+            }
+            // 連不上（這個網路可能擋了這種連線）：換另一種連線方式再登一次，設定跟著換
+            if ((state as? ConnectionState.Offline)?.unreachable == true && otherTransport != null) {
+                Button(onClick = onSwitchTransport, modifier = Modifier.padding(top = 8.dp).testTag("switch_transport_button")) {
+                    Text("改用 $otherTransport 連線再試一次")
+                }
+                Text(
+                    "這個網路可能擋了現在的連線方式；按了會把設定的連線方式一起換掉",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             // 過載、等太久這種失敗：看得到 PTT 當時的畫面寫了什麼
             (state as? ConnectionState.Offline)?.screen?.let { screen ->
