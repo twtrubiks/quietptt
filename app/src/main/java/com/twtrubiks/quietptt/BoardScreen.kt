@@ -102,6 +102,7 @@ import kotlinx.coroutines.launch
  * 列出來的是進板那一頁加上往下捲載入的（[Session.olderArticles]），存在 rememberSaveable 裡，開文章再回來還在、捲動位置也還在。
  * 離開之後也記在記憶體（[BoardLists]，不存檔）：再從我的最愛之類的地方點同一個板，先列上次的、不用等 PTT，
  * 走到最新那頁（`newest = true`）之後接得上就併、接不上就整份換成最新那頁。
+ * 換了連線（背景斷線後自動重登，頁面留在原地）也一樣：列出來的是上一條連線的，走到最新那頁再併或整份換掉。
  * 捲到最下面自動載入更舊的一頁，最下面那列也可以點；載入失敗那列顯示原因與重試。
  * 在最上面往下拉是重整（[PullToRefreshBox]，BePTT 的 `refresh_layout`）：跟工具列的「重整」做一樣的事（[refresh]）。
  *
@@ -146,7 +147,15 @@ fun BoardScreen(
     var fromCache by rememberSaveable(board, search) { mutableStateOf(cached != null) }
     var noResults by rememberSaveable(board, search) { mutableStateOf(false) }
     var articles by rememberSaveable(board, search, stateSaver = ArticlesSaver) { mutableStateOf(cached ?: emptyList()) }
+    // 列表是哪一條連線列的：換了連線（背景斷線後自動重登，頁面留在原地）列出來的就是舊的，跟先列上次記下來的一樣處理——
+    // 走到最新那頁，接得上就併、接不上就整份換掉。不然文章多的板新文章超過一頁、接不上，列表就一直停在斷線前的樣子
+    val connectionId = System.identityHashCode(session)
+    var listedOn by rememberSaveable(board, search) { mutableStateOf(connectionId) }
     val navigation = rememberNavigation(session, board to search) {
+        if (listedOn != connectionId) {
+            if (search == null && articles.isNotEmpty()) fromCache = true
+            listedOn = connectionId
+        }
         noResults = if (search == null) {
             // 第一次列（列表還是空的，或先列的是上次記下來的）要走到最新那頁：同一條連線再進同一個板，PTT 停在上次游標的位置。從文章退回來不用
             showBoard(board, newest = articles.isEmpty() || fromCache)
@@ -181,7 +190,7 @@ fun BoardScreen(
     // 終端上現在那一頁（進板、從文章退回來、載入更舊的之後）併進來：推文數會更新，新文章也會出現。
     // 本來停在最上面的話留在最上面：新文章排在最上面，不然 LazyColumn 會照 key 留在原本那篇、新的被擠到畫面外。
     // 跟列出來的接不上的那頁不併（搜尋結果退出來時終端停在很久以前的那頁，併進來中間會缺一段，見 connectsWith）
-    // 先列的是上次記下來的（[fromCache]）：PTT 走到的最新那頁接得上就併，接不上（離開太久，新文章超過一頁）就整份換掉，不然最新的永遠進不來
+    // 先列的是上次記下來的、或上一條連線列的（[fromCache]）：PTT 走到的最新那頁接得上就併，接不上（離開太久，新文章超過一頁）就整份換掉，不然最新的永遠進不來
     LaunchedEffect(live) {
         if (live == null) return@LaunchedEffect
         val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
@@ -189,7 +198,8 @@ fun BoardScreen(
         if (connects || fromCache) {
             articles = if (connects) articles.mergedWith(live.articles) else live.articles
             fromCache = false
-            if (atTop) listState.scrollToItem(0)
+            // 整份換掉的也回到最上面：原本捲到的那幾篇已經不在列表裡了
+            if (atTop || !connects) listState.scrollToItem(0)
         }
     }
     // 記下列過的，下次進這個板先列（搜尋結果不記；先列的上次那份還沒換成新的也不記）
